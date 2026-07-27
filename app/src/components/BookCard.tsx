@@ -24,6 +24,15 @@ export const BookCard: React.FC<BookCardProps> = ({ book, onPress, style }) => {
     }
   };
 
+  const handleRatingChange = (newRating: number) => {
+    if (book.id) {
+      updateBookReview(book.id, {
+        readStatus: book.readStatus,
+        rating: newRating,
+      });
+    }
+  };
+
   const getStatusBadge = () => {
     switch (book.readStatus) {
       case 'read':
@@ -154,8 +163,14 @@ export const BookCard: React.FC<BookCardProps> = ({ book, onPress, style }) => {
           </Text>
         </View>
 
+        {/* Interactive Star Rating on Catalogue Card */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
-          <StarRating rating={book.rating} size={14} />
+          <StarRating
+            rating={book.rating}
+            size={16}
+            interactive={true}
+            onRatingChange={handleRatingChange}
+          />
           {book.isbn ? (
             <Text style={{ color: '#64748b', fontSize: 10, fontFamily: 'monospace' }}>
               ISBN {book.isbn.slice(-4)}
