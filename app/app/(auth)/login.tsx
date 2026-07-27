@@ -328,7 +328,7 @@ export default function LoginScreen() {
                 <>
                   <Ionicons name="log-in-outline" size={20} color="#ffffff" />
                   <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '700' }}>
-                    Sign In to Cognito
+                    Sign In to Librarian
                   </Text>
                 </>
               )}
