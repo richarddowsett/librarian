@@ -3,5 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "description": "Librarian monorepo root package",
-  "scripts": {}
+  "scripts": {
+    "build:backend": "npm --prefix backend run build",
+    "deploy": "npm run build:backend && cd terraform && terraform init && terraform apply -auto-approve",
+    "deploy:backend": "npm run build:backend && cd terraform && terraform init && terraform apply -auto-approve"
+  }
 }
