@@ -59,7 +59,7 @@ export default function LibraryCatalogScreen() {
   ];
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+    <ScrollView style={{ flex: 1, backgroundColor: '#0f172a' }} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
       {/* Header & Stats Summary */}
       <View
         style={{

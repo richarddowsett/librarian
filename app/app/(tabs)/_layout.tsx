@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, useWindowDimensions, Text, TouchableOpacity } from 'react-native';
+import { View, useWindowDimensions, Text, TouchableOpacity, Platform } from 'react-native';
 import { Tabs, useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Header } from '../../src/components/Header';
@@ -29,14 +29,19 @@ export default function TabsLayout() {
     );
   }
 
+  if (Platform.OS === 'web' && typeof document !== 'undefined') {
+    document.body.style.backgroundColor = '#0f172a';
+  }
+
   return (
     <View style={{ flex: 1, backgroundColor: '#0f172a' }}>
       <Header />
       <View style={{ flex: 1, flexDirection: isWebDesktop ? 'row' : 'column' }}>
         {isWebDesktop && <Sidebar />}
 
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, backgroundColor: '#0f172a' }}>
           <Tabs
+            sceneContainerStyle={{ backgroundColor: '#0f172a' }}
             screenOptions={{
               headerShown: false,
               tabBarStyle: isWebDesktop

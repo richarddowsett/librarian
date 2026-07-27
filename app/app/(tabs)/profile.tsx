@@ -13,7 +13,7 @@ export default function ProfileScreen() {
   if (!user) return null;
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+    <ScrollView style={{ flex: 1, backgroundColor: '#0f172a' }} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
       <View style={{ marginBottom: 20 }}>
         <Text style={{ color: '#f8fafc', fontSize: 26, fontWeight: '800' }}>
           User Profile & Settings
