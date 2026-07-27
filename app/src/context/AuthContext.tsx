@@ -13,7 +13,7 @@ interface AuthContextType {
   isLoading: boolean;
   unconfirmedEmail: string | null;
   setUnconfirmedEmail: (email: string | null) => void;
-  signUp: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  signUp: (email: string, password: string, name?: string) => Promise<{ success: boolean; error?: string }>;
   confirmSignUp: (email: string, code: string) => Promise<{ success: boolean; error?: string }>;
   resendCode: (email: string) => Promise<{ success: boolean; error?: string }>;
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
@@ -76,8 +76,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signUp = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
-    const parseResult = cognitoSignUpSchema.safeParse({ email, password });
+  const signUp = async (email: string, password: string, name?: string): Promise<{ success: boolean; error?: string }> => {
+    const parseResult = cognitoSignUpSchema.safeParse({ email, password, name });
     if (!parseResult.success) {
       return {
         success: false,
@@ -87,7 +87,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setIsLoading(true);
     try {
-      await signUpWithCognito(email, password);
+      await signUpWithCognito(email, password, name);
       setUnconfirmedEmail(email);
       setIsLoading(false);
       return { success: true };

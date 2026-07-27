@@ -35,12 +35,20 @@ async function callCognitoApi(target: string, payload: Record<string, any>) {
   return data;
 }
 
-export async function signUpWithCognito(email: string, password: string): Promise<{ userSub: string; codeDeliveryDetails?: any }> {
+export async function signUpWithCognito(email: string, password: string, name?: string): Promise<{ userSub: string; codeDeliveryDetails?: any }> {
+  const userAttributes: Array<{ Name: string; Value: string }> = [
+    { Name: 'email', Value: email },
+  ];
+
+  if (name && name.trim()) {
+    userAttributes.push({ Name: 'name', Value: name.trim() });
+  }
+
   const response = await callCognitoApi('SignUp', {
     ClientId: COGNITO_CLIENT_ID,
     Username: email,
     Password: password,
-    UserAttributes: [{ Name: 'email', Value: email }],
+    UserAttributes: userAttributes,
   });
 
   return {
@@ -89,6 +97,10 @@ export async function signInWithCognito(email: string, password: string): Promis
 
   const subAttr = userDetails.UserAttributes?.find((attr: { Name: string; Value: string }) => attr.Name === 'sub');
   const emailAttr = userDetails.UserAttributes?.find((attr: { Name: string; Value: string }) => attr.Name === 'email');
+  const nameAttr = userDetails.UserAttributes?.find((attr: { Name: string; Value: string }) => attr.Name === 'name');
+
+  const resolvedEmail = emailAttr?.Value || email;
+  const resolvedDisplayName = nameAttr?.Value || resolvedEmail.split('@')[0];
 
   return {
     idToken: authResult.IdToken,
@@ -96,8 +108,8 @@ export async function signInWithCognito(email: string, password: string): Promis
     refreshToken: authResult.RefreshToken,
     user: {
       uid: subAttr?.Value || userDetails.Username || email,
-      email: emailAttr?.Value || email,
-      displayName: (emailAttr?.Value || email).split('@')[0],
+      email: resolvedEmail,
+      displayName: resolvedDisplayName,
     },
   };
 }

@@ -7,6 +7,7 @@ export const emailAuthSchema = z.object({
 export type EmailAuthInput = z.infer<typeof emailAuthSchema>;
 
 export const cognitoSignUpSchema = z.object({
+  name: z.string().trim().min(2, "Please enter your name (at least 2 characters)"),
   email: z.string().trim().email("Please enter a valid email address"),
   password: z.string().min(8, "Password must be at least 8 characters long")
     .regex(/[A-Z]/, "Password must contain at least one uppercase letter")

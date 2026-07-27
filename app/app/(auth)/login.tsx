@@ -29,6 +29,7 @@ export default function LoginScreen() {
   const [mode, setMode] = useState<Mode>(unconfirmedEmail ? 'confirm' : 'signin');
 
   // Form states
+  const [name, setName] = useState('');
   const [email, setEmail] = useState(unconfirmedEmail || '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -55,12 +56,17 @@ export default function LoginScreen() {
     setErrorMessage(null);
     setInfoMessage(null);
 
+    if (!name.trim()) {
+      setErrorMessage('Please enter your name.');
+      return;
+    }
+
     if (password !== confirmPassword) {
       setErrorMessage('Passwords do not match.');
       return;
     }
 
-    const res = await signUp(email.trim(), password);
+    const res = await signUp(email.trim(), password, name.trim());
     if (res.success) {
       setInfoMessage('Account created! Check your email inbox for your 6-digit verification code.');
       setMode('confirm');
@@ -333,6 +339,28 @@ export default function LoginScreen() {
         {/* MODE: SIGN UP */}
         {mode === 'signup' && (
           <View>
+            <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 6 }}>
+              Full Name
+            </Text>
+            <TextInput
+              value={name}
+              onChangeText={setName}
+              placeholder="Jane Doe"
+              placeholderTextColor="#64748b"
+              autoCapitalize="words"
+              style={{
+                backgroundColor: '#0f172a',
+                color: '#f8fafc',
+                borderRadius: 12,
+                paddingHorizontal: 16,
+                paddingVertical: 14,
+                fontSize: 15,
+                borderWidth: 1,
+                borderColor: '#334155',
+                marginBottom: 14,
+              }}
+            />
+
             <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 6 }}>
               Email Address
             </Text>
