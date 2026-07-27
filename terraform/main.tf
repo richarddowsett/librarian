@@ -353,30 +353,48 @@ resource "aws_wafv2_web_acl" "main" {
 # 5. AWS Lambda Backend Functions & Isolated IAM Roles Per Database
 # ------------------------------------------------------------------------------
 
+# Automatically build backend handlers before creating Zip archives
+resource "terraform_data" "build_backend" {
+  triggers_replace = [
+    filesha256("${path.module}/../backend/package.json"),
+    filesha256("${path.module}/../backend/build.js")
+  ]
+
+  provisioner "local-exec" {
+    working_dir = "${path.module}/../backend"
+    command     = "npm run build"
+  }
+}
+
 # Archive backend handler files into Zip archives for Lambda deployment
 data "archive_file" "books_lambda" {
+  depends_on  = [terraform_data.build_backend]
   type        = "zip"
   source_file = "${path.module}/../backend/dist/handlers/books.js"
   output_path = "${path.module}/build/books.zip"
 }
 
 data "archive_file" "series_lambda" {
+  depends_on  = [terraform_data.build_backend]
   type        = "zip"
   source_file = "${path.module}/../backend/dist/handlers/series.js"
   output_path = "${path.module}/build/series.zip"
 }
 
 data "archive_file" "user_series_status_lambda" {
+  depends_on  = [terraform_data.build_backend]
   type        = "zip"
   source_file = "${path.module}/../backend/dist/handlers/userSeriesStatus.js"
   output_path = "${path.module}/build/userSeriesStatus.zip"
 }
 
 data "archive_file" "open_library_lambda" {
+  depends_on  = [terraform_data.build_backend]
   type        = "zip"
   source_file = "${path.module}/../backend/dist/handlers/openLibrary.js"
   output_path = "${path.module}/build/openLibrary.zip"
 }
+
 
 # Standard Lambda AssumeRole Policy
 data "aws_iam_policy_document" "lambda_assume_role" {
