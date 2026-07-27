@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -31,6 +31,11 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
   const [isManualModalOpen, setIsManualModalOpen] = useState<boolean>(false);
   const [fallbackBookData, setFallbackBookData] = useState<any>(null);
 
+  // Web Desktop Webcam state & refs
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [webCamActive, setWebCamActive] = useState<boolean>(false);
+  const [webCamError, setWebCamError] = useState<string | null>(null);
+
   useEffect(() => {
     (async () => {
       if (Platform.OS !== 'web') {
@@ -41,6 +46,68 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
       }
     })();
   }, []);
+
+  // Web Camera Stream setup
+  useEffect(() => {
+    let stream: MediaStream | null = null;
+    let scanInterval: any = null;
+
+    if (Platform.OS === 'web' && isScanning) {
+      (async () => {
+        try {
+          if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+            });
+            if (videoRef.current) {
+              videoRef.current.srcObject = stream;
+              await videoRef.current.play().catch(() => {});
+              setWebCamActive(true);
+              setWebCamError(null);
+            }
+          }
+        } catch (err: any) {
+          console.warn('Webcam stream access error:', err);
+          setWebCamError('Webcam access was denied or not available. Please allow camera permissions in your browser.');
+          setWebCamActive(false);
+        }
+      })();
+
+      // BarcodeDetector interval loop if available in browser
+      if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+        try {
+          const barcodeDetector = new (window as any).BarcodeDetector({
+            formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'qr_code'],
+          });
+
+          scanInterval = setInterval(async () => {
+            if (videoRef.current && videoRef.current.readyState === 4 && isScanning) {
+              try {
+                const barcodes = await barcodeDetector.detect(videoRef.current);
+                if (barcodes && barcodes.length > 0) {
+                  const detectedIsbn = barcodes[0].rawValue;
+                  if (detectedIsbn) {
+                    handleBarCodeScanned(detectedIsbn);
+                  }
+                }
+              } catch (e) {
+                // Ignore detection frame errors
+              }
+            }
+          }, 400);
+        } catch (e) {
+          console.warn('BarcodeDetector initialization error:', e);
+        }
+      }
+    }
+
+    return () => {
+      if (scanInterval) clearInterval(scanInterval);
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, [isScanning, Platform.OS]);
 
   const handleBarCodeScanned = async (isbn: string) => {
     if (!isScanning || isSearching) return;
@@ -118,14 +185,14 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
             ISBN Barcode Scanner
           </Text>
           <Text style={{ color: '#94a3b8', fontSize: 14 }}>
-            Point your device camera at the book barcode, or enter the ISBN number manually below.
+            Point your device or desktop webcam at the book barcode, or enter the ISBN number manually below.
           </Text>
         </View>
 
         {/* Camera Scanner Container */}
         <View
           style={{
-            height: 280,
+            height: 320,
             backgroundColor: '#0f172a',
             borderRadius: 20,
             overflow: 'hidden',
@@ -138,6 +205,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
           }}
         >
           {Platform.OS !== 'web' && hasPermission ? (
+            /* Native Expo Camera View */
             <CameraView
               style={{ width: '100%', height: '100%' }}
               enableTorch={torchEnabled}
@@ -145,7 +213,6 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
                 isScanning ? ({ data }: { data: string }) => handleBarCodeScanned(data) : undefined
               }
             >
-              {/* Reticle Overlay */}
               <View
                 style={{
                   flex: 1,
@@ -173,15 +240,79 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
                 </Text>
               </View>
             </CameraView>
+          ) : Platform.OS === 'web' ? (
+            /* Web Desktop Live HTML5 Webcam Stream */
+            <View style={{ width: '100%', height: '100%', position: 'relative', alignItems: 'center', justifyContent: 'center' }}>
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  display: webCamActive ? 'block' : 'none',
+                }}
+              />
+
+              {!webCamActive && (
+                <View style={{ alignItems: 'center', padding: 24 }}>
+                  <Ionicons name="camera-outline" size={56} color="#0284c7" />
+                  <Text style={{ color: '#f8fafc', fontSize: 16, fontWeight: '700', marginTop: 12 }}>
+                    Webcam Scanner Initializing...
+                  </Text>
+                  {webCamError ? (
+                    <Text style={{ color: '#fca5a5', fontSize: 13, textAlign: 'center', marginTop: 8 }}>
+                      {webCamError}
+                    </Text>
+                  ) : (
+                    <Text style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', marginTop: 6, maxWidth: 360 }}>
+                      Please allow browser webcam permissions to scan book barcodes directly with your desktop camera.
+                    </Text>
+                  )}
+                </View>
+              )}
+
+              {/* Web Reticle Overlay */}
+              {webCamActive && (
+                <View
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: 'rgba(0,0,0,0.2)',
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 260,
+                      height: 150,
+                      borderWidth: 2,
+                      borderColor: '#38bdf8',
+                      borderRadius: 16,
+                      backgroundColor: 'rgba(56, 189, 248, 0.08)',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <View style={{ width: '80%', height: 2, backgroundColor: '#ef4444' }} />
+                  </View>
+                  <Text style={{ color: '#ffffff', fontSize: 12, marginTop: 10, fontWeight: '600' }}>
+                    Hold book barcode up to webcam
+                  </Text>
+                </View>
+              )}
+            </View>
           ) : (
-            /* Web platform / Camera fallback simulator */
             <View style={{ alignItems: 'center', padding: 24 }}>
               <Ionicons name="camera-outline" size={56} color="#0284c7" />
               <Text style={{ color: '#f8fafc', fontSize: 16, fontWeight: '700', marginTop: 12 }}>
-                Web Camera / Barcode Scanner Active
-              </Text>
-              <Text style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', marginTop: 6, maxWidth: 360 }}>
-                Use the manual ISBN lookup form or click a demo barcode preset below to test auto metadata fetching instantly.
+                Camera Unavailable
               </Text>
             </View>
           )}
