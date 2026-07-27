@@ -200,22 +200,31 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const updateBook = async (id: string, updates: Partial<Book>) => {
     const ownerId = user?.uid || 'dev-user-12345';
+    // Optimistic local state update
     setBooks((prev) =>
       prev.map((b) => (b.id === id ? { ...b, ...updates } : b))
     );
-    await updateBookApi(id, updates, {
+
+    // Call API Gateway PUT endpoint
+    const updatedRemote = await updateBookApi(id, updates, {
       authToken: authToken || undefined,
       userId: ownerId,
     });
+
+    if (updatedRemote) {
+      setBooks((prev) => prev.map((b) => (b.id === id ? updatedRemote : b)));
+    }
   };
 
   const updateBookReview = async (id: string, reviewData: UpdateBookReviewInput) => {
+    const targetBook = books.find((b) => b.id === id);
     const isNowRead = reviewData.readStatus === 'read';
+
     const updates: Partial<Book> = {
       readStatus: reviewData.readStatus,
-      rating: reviewData.rating,
-      review: reviewData.review,
-      dateRead: isNowRead ? (reviewData.dateRead || new Date().toISOString()) : undefined,
+      rating: reviewData.rating !== undefined ? reviewData.rating : targetBook?.rating,
+      review: reviewData.review !== undefined ? reviewData.review : targetBook?.review,
+      dateRead: isNowRead ? (reviewData.dateRead || targetBook?.dateRead || new Date().toISOString()) : targetBook?.dateRead,
     };
 
     await updateBook(id, updates);
