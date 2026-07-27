@@ -1,0 +1,7 @@
+{
+  "name": "librarian",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Librarian monorepo root package",
+  "scripts": {}
+}

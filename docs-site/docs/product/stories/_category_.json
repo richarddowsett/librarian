@@ -1,0 +1,8 @@
+{
+  "label": "User Stories",
+  "position": 3,
+  "link": {
+    "type": "generated-index",
+    "description": "Detailed functional and security user stories with Gherkin acceptance criteria."
+  }
+}
