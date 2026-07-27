@@ -96,7 +96,7 @@ export default function ProfileScreen() {
         </Text>
         <View style={{ gap: 10 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={{ color: '#94a3b8', fontSize: 14 }}>Total Books Cataloged</Text>
+            <Text style={{ color: '#94a3b8', fontSize: 14 }}>Total Books Catalogued</Text>
             <Text style={{ color: '#f8fafc', fontSize: 14, fontWeight: '700' }}>{stats.totalBooks}</Text>
           </View>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>

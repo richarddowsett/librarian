@@ -42,7 +42,7 @@ export const Header: React.FC = () => {
             LIBRARIAN
           </Text>
           <Text style={{ color: '#38bdf8', fontSize: 10, fontWeight: '700', letterSpacing: 1 }}>
-            BOOK CATALOG
+            BOOK CATALOGUE
           </Text>
         </View>
       </TouchableOpacity>

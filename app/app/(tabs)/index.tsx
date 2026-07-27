@@ -51,11 +51,6 @@ export default function LibraryCatalogScreen() {
     setIsFormModalOpen(true);
   };
 
-  const handleAddBook = () => {
-    setEditBookData(null);
-    setIsFormModalOpen(true);
-  };
-
   const filterTabs: { label: string; value: 'all' | 'unread' | 'reading' | 'read'; count: number }[] = [
     { label: 'All Books', value: 'all', count: stats.totalBooks },
     { label: 'Unread', value: 'unread', count: stats.unreadCount },
@@ -68,41 +63,15 @@ export default function LibraryCatalogScreen() {
       {/* Header & Stats Summary */}
       <View
         style={{
-          flexDirection: width >= 768 ? 'row' : 'column',
-          justifyContent: 'space-between',
-          alignItems: width >= 768 ? 'center' : 'flex-start',
-          gap: 16,
           marginBottom: 20,
         }}
       >
-        <View>
-          <Text style={{ color: '#f8fafc', fontSize: 26, fontWeight: '800' }}>
-            My Library Catalog
-          </Text>
-          <Text style={{ color: '#94a3b8', fontSize: 14, marginTop: 2 }}>
-            Manage your physical collection, track reading progress, and log reviews.
-          </Text>
-        </View>
-
-        <TouchableOpacity
-          onPress={handleAddBook}
-          style={{
-            backgroundColor: '#0284c7',
-            paddingHorizontal: 20,
-            paddingVertical: 12,
-            borderRadius: 14,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 8,
-            shadowColor: '#0284c7',
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.3,
-            shadowRadius: 8,
-          }}
-        >
-          <Ionicons name="add-circle" size={20} color="#ffffff" />
-          <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '700' }}>Add Book</Text>
-        </TouchableOpacity>
+        <Text style={{ color: '#f8fafc', fontSize: 26, fontWeight: '800' }}>
+          My Library Catalogue
+        </Text>
+        <Text style={{ color: '#94a3b8', fontSize: 14, marginTop: 2 }}>
+          Manage your physical collection, track reading progress, and log reviews.
+        </Text>
       </View>
 
       {/* Quick Stats Badges */}
@@ -303,7 +272,7 @@ export default function LibraryCatalogScreen() {
           >
             {searchQuery
               ? `No books matching "${searchQuery}". Try clearing your search.`
-              : 'Your library is currently empty under this filter. Tap "Add Book" or scan a barcode to add your first book!'}
+              : 'Your library is currently empty under this filter. Scan a book barcode to add your first book!'}
           </Text>
         </View>
       )}
