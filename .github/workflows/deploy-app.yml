@@ -27,6 +27,8 @@ jobs:
     defaults:
       run:
         working-directory: ./app
+    outputs:
+      has_expo_token: ${{ steps.check-token.outputs.has_token }}
 
     steps:
       - name: Checkout Code
@@ -67,10 +69,21 @@ jobs:
             aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*"
           fi
 
+      - name: Check Expo Token Presence
+        id: check-token
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -n "$EXPO_TOKEN" ]; then
+            echo "has_token=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+          fi
+
   eas-mobile-build:
     name: EAS Mobile Build (Trigger Manual or Tag)
     needs: build-and-deploy-web
-    if: github.event_name == 'workflow_dispatch' && secrets.EXPO_TOKEN != ''
+    if: github.event_name == 'workflow_dispatch' && needs.build-and-deploy-web.outputs.has_expo_token == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
