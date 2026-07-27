@@ -3,6 +3,7 @@ import { View, Text, Image, TouchableOpacity, StyleProp, ViewStyle } from 'react
 import { Book } from '../schemas/book';
 import { StarRating } from './StarRating';
 import { Ionicons } from '@expo/vector-icons';
+import { useLibrary } from '../context/LibraryContext';
 
 interface BookCardProps {
   book: Book;
@@ -11,6 +12,18 @@ interface BookCardProps {
 }
 
 export const BookCard: React.FC<BookCardProps> = ({ book, onPress, style }) => {
+  const { updateBookReview } = useLibrary();
+
+  const handleQuickMarkRead = (e: any) => {
+    e.stopPropagation?.();
+    if (book.id) {
+      updateBookReview(book.id, {
+        readStatus: 'read',
+        dateRead: new Date().toISOString(),
+      });
+    }
+  };
+
   const getStatusBadge = () => {
     switch (book.readStatus) {
       case 'read':
@@ -79,6 +92,36 @@ export const BookCard: React.FC<BookCardProps> = ({ book, onPress, style }) => {
           <Ionicons name={status.icon} size={12} color={status.text} />
           <Text style={{ color: status.text, fontSize: 11, fontWeight: '700' }}>{status.label}</Text>
         </View>
+
+        {/* 1-Click "Mark as Read" Quick Action Button */}
+        {book.readStatus !== 'read' && (
+          <TouchableOpacity
+            onPress={handleQuickMarkRead}
+            style={{
+              position: 'absolute',
+              top: 10,
+              left: 10,
+              backgroundColor: 'rgba(5, 150, 105, 0.92)',
+              paddingHorizontal: 9,
+              paddingVertical: 5,
+              borderRadius: 12,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 5,
+              borderWidth: 1,
+              borderColor: '#34d399',
+              shadowColor: '#059669',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.4,
+              shadowRadius: 4,
+            }}
+          >
+            <Ionicons name="checkmark-circle-sharp" size={14} color="#ffffff" />
+            <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '800' }}>
+              Mark Read
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {book.seriesName && (
           <View
