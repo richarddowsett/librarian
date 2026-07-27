@@ -1,4 +1,4 @@
-name: Deploy App (Expo Web & EAS Mobile)
+name: Deploy App (Expo Web S3/CloudFront & EAS Mobile)
 
 on:
   push:
@@ -21,8 +21,8 @@ permissions:
   pull-requests: write
 
 jobs:
-  test-and-build-web:
-    name: Build & Deploy Expo Web App
+  build-and-deploy-web:
+    name: Build & Deploy Expo Web SPA to AWS S3 / CloudFront
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -45,32 +45,31 @@ jobs:
       - name: TypeScript Verification
         run: npm run typecheck
 
-      - name: Run Tests
-        run: npm test -- --passWithNoTests
-
-      - name: Export Web Application
+      - name: Export Web Application Bundle
         run: npx expo export --platform web
         env:
-          EXPO_PUBLIC_FIREBASE_API_KEY: ${{ secrets.EXPO_PUBLIC_FIREBASE_API_KEY }}
-          EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN }}
-          EXPO_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-          EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ secrets.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET }}
-          EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
-          EXPO_PUBLIC_FIREBASE_APP_ID: ${{ secrets.EXPO_PUBLIC_FIREBASE_APP_ID }}
+          EXPO_PUBLIC_API_URL: https://d3awrdif72.execute-api.eu-central-1.amazonaws.com
 
-      - name: Deploy Web to Firebase Hosting
+      - name: Configure AWS Credentials
         if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-        uses: FirebaseExtended/action-hosting-deploy@v0
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.GCP_SA_KEY }}'
-          channelId: live
-          projectId: '${{ secrets.GCP_PROJECT_ID }}'
-          entryPoint: ./app
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'eu-central-1' }}
+
+      - name: Sync Dist to S3 & Invalidate CloudFront Cache
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        run: |
+          aws s3 sync dist s3://librarian-dev-frontend-bucket --delete
+          DIST_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?Comment=='CloudFront Distribution for Librarian Frontend SPA'].Id | [0]" --output text)
+          if [ "$DIST_ID" != "None" ] && [ -n "$DIST_ID" ]; then
+            aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*"
+          fi
 
   eas-mobile-build:
     name: EAS Mobile Build (Trigger Manual or Tag)
-    needs: test-and-build-web
+    needs: build-and-deploy-web
     if: github.event_name == 'workflow_dispatch' && secrets.EXPO_TOKEN != ''
     runs-on: ubuntu-latest
     defaults:

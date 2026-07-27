@@ -48,3 +48,19 @@ output "api_gateway_endpoint" {
   value       = aws_apigatewayv2_api.main.api_endpoint
 }
 
+output "frontend_s3_bucket" {
+  description = "Name of the S3 bucket storing frontend SPA assets."
+  value       = aws_s3_bucket.frontend.id
+}
+
+output "cloudfront_url" {
+  description = "Live CloudFront HTTPS URL for the frontend application."
+  value       = "https://${aws_cloudfront_distribution.frontend.domain_name}"
+}
+
+output "cloudfront_distribution_id" {
+  description = "ID of the CloudFront distribution for cache invalidations."
+  value       = aws_cloudfront_distribution.frontend.id
+}
+
+

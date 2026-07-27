@@ -6,6 +6,8 @@
   "scripts": {
     "build:backend": "npm --prefix backend run build",
     "deploy": "npm run build:backend && cd terraform && terraform init && terraform apply -auto-approve",
-    "deploy:backend": "npm run build:backend && cd terraform && terraform init && terraform apply -auto-approve"
+    "deploy:backend": "npm run build:backend && cd terraform && terraform init && terraform apply -auto-approve",
+    "build:app": "EXPO_PUBLIC_API_URL=https://d3awrdif72.execute-api.eu-central-1.amazonaws.com npm --prefix app run build:web",
+    "deploy:app": "npm run build:app && aws s3 sync app/dist s3://librarian-dev-frontend-bucket --delete"
   }
 }
