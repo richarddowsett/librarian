@@ -48,7 +48,7 @@ jobs:
       - name: Export Web Application Bundle
         run: npx expo export --platform web
         env:
-          EXPO_PUBLIC_API_URL: https://d3awrdif72.execute-api.eu-central-1.amazonaws.com
+          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
 
       - name: Configure AWS Credentials
         if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
