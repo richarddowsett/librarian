@@ -70,7 +70,7 @@ export const BookFormModal: React.FC<BookFormModalProps> = ({
     setErrorMsg(null);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setErrorMsg(null);
     const authors = authorInput
       .split(',')
@@ -97,10 +97,10 @@ export const BookFormModal: React.FC<BookFormModalProps> = ({
     };
 
     if (initialData?.id) {
-      updateBook(initialData.id, bookPayload);
+      await updateBook(initialData.id, bookPayload);
       onClose();
     } else {
-      const result = addBook(bookPayload);
+      const result = await addBook(bookPayload);
       if (result.success) {
         resetForm();
         onClose();

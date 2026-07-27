@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useMemo } from 'react';
+import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
 import { Book, CreateBookInput, UpdateBookReviewInput, bookSchema } from '../schemas/book';
 import { useAuth } from './AuthContext';
+import { fetchBooksApi, addBookApi, updateBookApi, deleteBookApi } from '../services/apiClient';
 
 export interface SeriesOverview {
   seriesId: string;
@@ -18,10 +19,10 @@ interface LibraryContextType {
   setSearchQuery: (query: string) => void;
   statusFilter: 'all' | 'unread' | 'reading' | 'read';
   setStatusFilter: (status: 'all' | 'unread' | 'reading' | 'read') => void;
-  addBook: (input: Omit<CreateBookInput, 'ownerId'>) => { success: boolean; book?: Book; error?: string };
-  updateBook: (id: string, updates: Partial<Book>) => void;
-  updateBookReview: (id: string, reviewData: UpdateBookReviewInput) => void;
-  deleteBook: (id: string) => void;
+  addBook: (input: Omit<CreateBookInput, 'ownerId'>) => Promise<{ success: boolean; book?: Book; error?: string }>;
+  updateBook: (id: string, updates: Partial<Book>) => Promise<void>;
+  updateBookReview: (id: string, reviewData: UpdateBookReviewInput) => Promise<void>;
+  deleteBook: (id: string) => Promise<void>;
   getBookById: (id: string) => Book | undefined;
   seriesOverviews: SeriesOverview[];
   stats: {
@@ -148,6 +149,17 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'unread' | 'reading' | 'read'>('all');
 
+  // Load books from backend API when component mounts or user changes
+  useEffect(() => {
+    async function loadBackendBooks() {
+      const remoteBooks = await fetchBooksApi({ userId: user?.uid || 'dev-user-12345' });
+      if (remoteBooks && remoteBooks.length > 0) {
+        setBooks(remoteBooks);
+      }
+    }
+    loadBackendBooks();
+  }, [user]);
+
   const userBooks = useMemo(() => {
     if (!user) return [];
     return books.filter((b) => b.ownerId === user.uid || b.ownerId === 'dev-user-12345');
@@ -224,7 +236,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return result;
   }, [userBooks]);
 
-  const addBook = (input: Omit<CreateBookInput, 'ownerId'>) => {
+  const addBook = async (input: Omit<CreateBookInput, 'ownerId'>) => {
     const ownerId = user?.uid || 'dev-user-12345';
     const newBookCandidate = {
       ...input,
@@ -243,34 +255,42 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       id: 'book-' + Date.now(),
     };
 
+    // Optimistic update
     setBooks((prev) => [createdBook, ...prev]);
+
+    // Send to backend API Gateway
+    const remoteBook = await addBookApi(input, { userId: ownerId });
+    if (remoteBook) {
+      setBooks((prev) => prev.map((b) => (b.id === createdBook.id ? remoteBook : b)));
+    }
+
     return { success: true, book: createdBook };
   };
 
-  const updateBook = (id: string, updates: Partial<Book>) => {
+  const updateBook = async (id: string, updates: Partial<Book>) => {
+    const ownerId = user?.uid || 'dev-user-12345';
     setBooks((prev) =>
       prev.map((b) => (b.id === id ? { ...b, ...updates } : b))
     );
+    await updateBookApi(id, updates, { userId: ownerId });
   };
 
-  const updateBookReview = (id: string, reviewData: UpdateBookReviewInput) => {
-    setBooks((prev) =>
-      prev.map((b) => {
-        if (b.id !== id) return b;
-        const isNowRead = reviewData.readStatus === 'read';
-        return {
-          ...b,
-          readStatus: reviewData.readStatus,
-          rating: reviewData.rating ?? b.rating,
-          review: reviewData.review ?? b.review,
-          dateRead: isNowRead ? (reviewData.dateRead || new Date().toISOString()) : b.dateRead,
-        };
-      })
-    );
+  const updateBookReview = async (id: string, reviewData: UpdateBookReviewInput) => {
+    const isNowRead = reviewData.readStatus === 'read';
+    const updates: Partial<Book> = {
+      readStatus: reviewData.readStatus,
+      rating: reviewData.rating,
+      review: reviewData.review,
+      dateRead: isNowRead ? (reviewData.dateRead || new Date().toISOString()) : undefined,
+    };
+
+    await updateBook(id, updates);
   };
 
-  const deleteBook = (id: string) => {
+  const deleteBook = async (id: string) => {
+    const ownerId = user?.uid || 'dev-user-12345';
     setBooks((prev) => prev.filter((b) => b.id !== id));
+    await deleteBookApi(id, { userId: ownerId });
   };
 
   const getBookById = (id: string) => {

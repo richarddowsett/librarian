@@ -42,3 +42,9 @@ output "waf_web_acl_arn" {
   description = "ARN of the provisioned AWS WAF Web ACL."
   value       = aws_wafv2_web_acl.main.arn
 }
+
+output "api_gateway_endpoint" {
+  description = "HTTP API Gateway Base URL for the client application."
+  value       = aws_apigatewayv2_api.main.api_endpoint
+}
+

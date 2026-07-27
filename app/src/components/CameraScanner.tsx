@@ -76,10 +76,10 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
     }
   };
 
-  const handleSaveScannedBook = () => {
+  const handleConfirmAdd = async () => {
     if (!scannedResult) return;
 
-    const result = addBook({
+    const result = await addBook({
       title: scannedResult.title,
       authors: scannedResult.authors,
       isbn: scannedResult.isbn,
@@ -418,7 +418,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
                 <Text style={{ color: '#cbd5e1', fontWeight: '700' }}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={handleSaveScannedBook}
+                onPress={handleConfirmAdd}
                 style={{
                   flex: 2,
                   paddingVertical: 12,
