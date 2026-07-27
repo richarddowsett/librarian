@@ -1,0 +1,75 @@
+import { fetchBooksApi, addBookApi, updateBookApi, deleteBookApi, lookupIsbnApi } from './apiClient';
+
+describe('API Client Unit Tests', () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    jest.restoreAllMocks();
+  });
+
+  it('fetchBooksApi attaches Authorization bearer header when authToken is passed', async () => {
+    const mockBooks = [{ id: 'book-1', title: 'Test Book', ownerId: 'user-1' }];
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ books: mockBooks }),
+    } as Response);
+
+    const books = await fetchBooksApi({ authToken: 'mock-jwt-token-123' });
+
+    expect(books).toEqual(mockBooks);
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/books'),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: 'Bearer mock-jwt-token-123',
+        }),
+      })
+    );
+  });
+
+  it('addBookApi sends POST request with JSON payload', async () => {
+    const input = {
+      title: 'New Book',
+      authors: ['Author A'],
+      isbn: '9780000000000',
+      readStatus: 'unread' as const,
+      dateAdded: '2026-07-27T00:00:00.000Z',
+    };
+
+    const mockCreated = { id: 'book-999', ...input, ownerId: 'user-123' };
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ book: mockCreated }),
+    } as Response);
+
+    const result = await addBookApi(input, { authToken: 'mock-token' });
+
+    expect(result).toEqual(mockCreated);
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/books'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(input),
+      })
+    );
+  });
+
+  it('lookupIsbnApi encodes ISBN query parameter', async () => {
+    const mockOpenLibraryBook = { title: 'Dune', isbn: '9780441172719' };
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ book: mockOpenLibraryBook }),
+    } as Response);
+
+    const book = await lookupIsbnApi('9780441172719');
+
+    expect(book).toEqual(mockOpenLibraryBook);
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/open-library/lookup?isbn=9780441172719'),
+      expect.anything()
+    );
+  });
+});

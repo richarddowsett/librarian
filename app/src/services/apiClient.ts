@@ -1,6 +1,7 @@
 import { Book, CreateBookInput } from '../schemas/book';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || '';
+const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL || 'https://d3awrdif72.execute-api.eu-central-1.amazonaws.com';
 
 export interface ApiOptions {
   authToken?: string;
