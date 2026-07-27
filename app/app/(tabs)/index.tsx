@@ -282,7 +282,6 @@ export default function LibraryCatalogScreen() {
         book={selectedBook}
         visible={isDetailModalOpen}
         onClose={() => setIsDetailModalOpen(false)}
-        onEditBook={handleEditBook}
       />
 
       <BookFormModal

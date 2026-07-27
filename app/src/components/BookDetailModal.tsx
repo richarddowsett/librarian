@@ -18,14 +18,12 @@ interface BookDetailModalProps {
   book: Book | null;
   visible: boolean;
   onClose: () => void;
-  onEditBook?: (book: Book) => void;
 }
 
 export const BookDetailModal: React.FC<BookDetailModalProps> = ({
   book,
   visible,
   onClose,
-  onEditBook,
 }) => {
   const { updateBookReview, deleteBook } = useLibrary();
   if (!book) return null;
@@ -100,21 +98,6 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
           >
             <Text style={{ color: '#f8fafc', fontSize: 18, fontWeight: '700' }}>Book Details</Text>
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              {onEditBook && (
-                <TouchableOpacity
-                  onPress={() => {
-                    onClose();
-                    onEditBook(book);
-                  }}
-                  style={{
-                    backgroundColor: '#334155',
-                    padding: 8,
-                    borderRadius: 20,
-                  }}
-                >
-                  <Ionicons name="pencil" size={18} color="#e2e8f0" />
-                </TouchableOpacity>
-              )}
               <TouchableOpacity
                 onPress={handleDelete}
                 style={{
