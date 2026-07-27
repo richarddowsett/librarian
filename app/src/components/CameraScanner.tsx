@@ -26,10 +26,14 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
   const [torchEnabled, setTorchEnabled] = useState<boolean>(false);
   const [manualIsbn, setManualIsbn] = useState<string>('');
   const [isSearching, setIsSearching] = useState<boolean>(false);
-  const [scannedResult, setScannedResult] = useState<OpenLibraryBookResult | null>(null);
+
+  // Staged Queue for Multi-Book Bulk Scanning
+  const [stagedBooks, setStagedBooks] = useState<OpenLibraryBookResult[]>([]);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [isManualModalOpen, setIsManualModalOpen] = useState<boolean>(false);
   const [fallbackBookData, setFallbackBookData] = useState<any>(null);
+  const [isBulkAdding, setIsBulkAdding] = useState<boolean>(false);
 
   // Web Desktop Webcam state & refs
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -94,7 +98,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
                 // Ignore detection frame errors
               }
             }
-          }, 400);
+          }, 500);
         } catch (e) {
           console.warn('BarcodeDetector initialization error:', e);
         }
@@ -109,30 +113,50 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
     };
   }, [isScanning, Platform.OS]);
 
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 3500);
+  };
+
   const handleBarCodeScanned = async (isbn: string) => {
     if (!isScanning || isSearching) return;
-    setIsScanning(false);
-    setManualIsbn(isbn);
-    await lookupISBN(isbn);
+    const cleanIsbn = isbn.replace(/[- ]/g, '').trim();
+
+    // Prevent immediate duplicate scans of the same ISBN in the queue
+    if (stagedBooks.some((b) => b.isbn === cleanIsbn)) {
+      showToast(`ISBN ${cleanIsbn} is already in your staging queue!`);
+      return;
+    }
+
+    setIsSearching(true);
+    await lookupISBN(cleanIsbn);
   };
 
   const lookupISBN = async (targetIsbn: string) => {
     const cleanIsbn = targetIsbn.replace(/[- ]/g, '').trim();
     if (!cleanIsbn) {
       setSearchError('Please enter a valid ISBN code.');
+      setIsSearching(false);
       return;
     }
 
     setIsSearching(true);
     setSearchError(null);
-    setScannedResult(null);
 
     try {
       const bookData = await fetchBookByISBN(cleanIsbn);
       if (bookData) {
-        setScannedResult(bookData);
+        // Automatically push book to Staged Queue
+        setStagedBooks((prev) => {
+          if (prev.some((b) => b.isbn === bookData.isbn)) return prev;
+          return [bookData, ...prev];
+        });
+        showToast(`Added "${bookData.title}" to Queue!`);
+        setManualIsbn('');
       } else {
-        setSearchError(`No match found in Open Library for ISBN: ${cleanIsbn}. You can create a manual entry below.`);
+        setSearchError(`No match found in Open Library for ISBN: ${cleanIsbn}. You can enter details manually below.`);
         setFallbackBookData({ isbn: cleanIsbn });
       }
     } catch (err: any) {
@@ -140,33 +164,42 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
       setFallbackBookData({ isbn: cleanIsbn });
     } finally {
       setIsSearching(false);
+      // Re-enable camera scanning immediately so user can scan next book continuously!
+      setIsScanning(true);
     }
   };
 
-  const handleConfirmAdd = async () => {
-    if (!scannedResult) return;
+  const handleRemoveStagedBook = (isbn: string) => {
+    setStagedBooks((prev) => prev.filter((b) => b.isbn !== isbn));
+  };
 
-    const result = await addBook({
-      title: scannedResult.title,
-      authors: scannedResult.authors,
-      isbn: scannedResult.isbn,
-      coverUrl: scannedResult.coverUrl,
-      publisher: scannedResult.publisher,
-      publishDate: scannedResult.publishDate,
-      pageCount: scannedResult.pageCount,
-      readStatus: 'unread',
-      seriesName: scannedResult.seriesName || null,
-      seriesVolumeNumber: scannedResult.seriesVolumeNumber || null,
-    });
+  const handleBulkAdd = async () => {
+    if (stagedBooks.length === 0) return;
+    setIsBulkAdding(true);
 
-    if (result.success) {
-      alert(`Success! "${scannedResult.title}" has been added to your library.`);
-      setScannedResult(null);
-      setIsScanning(true);
-      if (onBookCataloged) onBookCataloged();
-    } else {
-      setSearchError(result.error || 'Failed to catalog book');
+    let addedCount = 0;
+    for (const book of stagedBooks) {
+      const res = await addBook({
+        title: book.title,
+        authors: book.authors,
+        isbn: book.isbn,
+        coverUrl: book.coverUrl,
+        publisher: book.publisher,
+        publishDate: book.publishDate,
+        pageCount: book.pageCount,
+        readStatus: 'unread',
+        seriesName: book.seriesName || null,
+        seriesVolumeNumber: book.seriesVolumeNumber || null,
+      });
+      if (res.success) {
+        addedCount++;
+      }
     }
+
+    setIsBulkAdding(false);
+    alert(`Success! ${addedCount} book(s) have been added to your library.`);
+    setStagedBooks([]);
+    if (onBookCataloged) onBookCataloged();
   };
 
   const QUICK_ISBN_PRESETS = [
@@ -179,20 +212,42 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
   return (
     <ScrollView contentContainerStyle={{ padding: 16, alignItems: 'center' }}>
       <View style={{ width: '100%', maxWidth: 640 }}>
-        {/* Scanner View Header */}
+        {/* Header */}
         <View style={{ marginBottom: 16 }}>
           <Text style={{ color: '#f8fafc', fontSize: 24, fontWeight: '800', marginBottom: 4 }}>
-            ISBN Barcode Scanner
+            Multi-Book Barcode Scanner
           </Text>
           <Text style={{ color: '#94a3b8', fontSize: 14 }}>
-            Point your device or desktop webcam at the book barcode, or enter the ISBN number manually below.
+            Scan multiple books in a row. Scanned books will be added to your queue below, then click "Add All to Library".
           </Text>
         </View>
 
-        {/* Camera Scanner Container */}
+        {/* Scanning Toast Banner Alert */}
+        {toastMessage && (
+          <View
+            style={{
+              backgroundColor: 'rgba(56, 189, 248, 0.15)',
+              borderColor: '#38bdf8',
+              borderWidth: 1.5,
+              padding: 12,
+              borderRadius: 14,
+              marginBottom: 16,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 10,
+            }}
+          >
+            <Ionicons name="sparkles" size={20} color="#38bdf8" />
+            <Text style={{ color: '#f8fafc', fontSize: 14, fontWeight: '700', flex: 1 }}>
+              {toastMessage}
+            </Text>
+          </View>
+        )}
+
+        {/* Camera Scanner View Box */}
         <View
           style={{
-            height: 320,
+            height: 300,
             backgroundColor: '#0f172a',
             borderRadius: 20,
             overflow: 'hidden',
@@ -223,12 +278,12 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
               >
                 <View
                   style={{
-                    width: 240,
-                    height: 140,
+                    width: 260,
+                    height: 150,
                     borderWidth: 2,
                     borderColor: '#38bdf8',
                     borderRadius: 16,
-                    backgroundColor: 'rgba(56, 189, 248, 0.05)',
+                    backgroundColor: 'rgba(56, 189, 248, 0.08)',
                     justifyContent: 'center',
                     alignItems: 'center',
                   }}
@@ -359,7 +414,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
           </View>
         </View>
 
-        {/* Manual ISBN Numeric Fallback Form */}
+        {/* Manual ISBN Numeric Search Form */}
         <View
           style={{
             backgroundColor: '#1e293b',
@@ -417,7 +472,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
             </TouchableOpacity>
           </View>
 
-          {/* Demo Barcode Presets */}
+          {/* Quick Demo Presets */}
           <Text style={{ color: '#94a3b8', fontSize: 12, marginBottom: 8, fontWeight: '600' }}>
             Quick Demo Presets:
           </Text>
@@ -446,7 +501,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
           </View>
         </View>
 
-        {/* Search Result Card / Fallback */}
+        {/* Search Error Banner */}
         {searchError && (
           <View
             style={{
@@ -478,7 +533,8 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
           </View>
         )}
 
-        {scannedResult && (
+        {/* STAGED BOOKS QUEUE & BULK SAVE */}
+        {stagedBooks.length > 0 && (
           <View
             style={{
               backgroundColor: '#1e293b',
@@ -486,87 +542,110 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
               borderWidth: 2,
               borderRadius: 20,
               padding: 20,
+              marginBottom: 24,
               shadowColor: '#0284c7',
               shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.3,
-              shadowRadius: 10,
+              shadowOpacity: 0.25,
+              shadowRadius: 12,
             }}
           >
-            <View style={{ flexDirection: 'row', gap: 16, marginBottom: 16 }}>
-              <View
-                style={{
-                  width: 90,
-                  height: 130,
-                  borderRadius: 10,
-                  backgroundColor: '#0f172a',
-                  overflow: 'hidden',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                {scannedResult.coverUrl ? (
-                  <Image
-                    source={{ uri: scannedResult.coverUrl }}
-                    style={{ width: '100%', height: '100%', resizeMode: 'cover' }}
-                  />
-                ) : (
-                  <Ionicons name="book-outline" size={36} color="#64748b" />
-                )}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="library" size={22} color="#38bdf8" />
+                <Text style={{ color: '#f8fafc', fontSize: 18, fontWeight: '800' }}>
+                  Staged Books Queue ({stagedBooks.length})
+                </Text>
               </View>
 
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: '#38bdf8', fontSize: 12, fontWeight: '800', marginBottom: 4 }}>
-                  SCAN MATCH FOUND
-                </Text>
-                <Text style={{ color: '#f8fafc', fontSize: 18, fontWeight: '800', marginBottom: 4 }}>
-                  {scannedResult.title}
-                </Text>
-                <Text style={{ color: '#94a3b8', fontSize: 14, marginBottom: 8 }}>
-                  By {scannedResult.authors.join(', ')}
-                </Text>
-                <Text style={{ color: '#64748b', fontSize: 12, fontFamily: 'monospace' }}>
-                  ISBN: {scannedResult.isbn}
-                </Text>
-                {scannedResult.publisher ? (
-                  <Text style={{ color: '#64748b', fontSize: 12, marginTop: 2 }}>
-                    Publisher: {scannedResult.publisher}
+              <TouchableOpacity
+                onPress={() => setStagedBooks([])}
+                style={{ paddingVertical: 4, paddingHorizontal: 8 }}
+              >
+                <Text style={{ color: '#94a3b8', fontSize: 12, fontWeight: '600' }}>Clear Queue</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* List of Staged Books */}
+            <View style={{ gap: 12, marginBottom: 20 }}>
+              {stagedBooks.map((book) => (
+                <View
+                  key={book.isbn}
+                  style={{
+                    flexDirection: 'row',
+                    backgroundColor: '#0f172a',
+                    borderRadius: 14,
+                    padding: 12,
+                    alignItems: 'center',
+                    gap: 12,
+                    borderWidth: 1,
+                    borderColor: '#334155',
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 48,
+                      height: 68,
+                      borderRadius: 8,
+                      backgroundColor: '#1e293b',
+                      overflow: 'hidden',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {book.coverUrl ? (
+                      <Image source={{ uri: book.coverUrl }} style={{ width: '100%', height: '100%', resizeMode: 'cover' }} />
+                    ) : (
+                      <Ionicons name="book" size={24} color="#64748b" />
+                    )}
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: '#f8fafc', fontSize: 15, fontWeight: '800' }} numberOfLines={1}>
+                      {book.title}
+                    </Text>
+                    <Text style={{ color: '#94a3b8', fontSize: 13, marginTop: 2 }} numberOfLines={1}>
+                      By {book.authors.join(', ')}
+                    </Text>
+                    <Text style={{ color: '#64748b', fontSize: 11, fontFamily: 'monospace', marginTop: 4 }}>
+                      ISBN: {book.isbn}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    onPress={() => handleRemoveStagedBook(book.isbn)}
+                    style={{ padding: 8, borderRadius: 8, backgroundColor: 'rgba(239, 68, 68, 0.15)' }}
+                  >
+                    <Ionicons name="trash-outline" size={18} color="#fca5a5" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+
+            {/* Bulk Add Action Button */}
+            <TouchableOpacity
+              onPress={handleBulkAdd}
+              disabled={isBulkAdding}
+              style={{
+                backgroundColor: '#0284c7',
+                paddingVertical: 14,
+                borderRadius: 14,
+                alignItems: 'center',
+                flexDirection: 'row',
+                justifyContent: 'center',
+                gap: 10,
+              }}
+            >
+              {isBulkAdding ? (
+                <ActivityIndicator color="#ffffff" size="small" />
+              ) : (
+                <>
+                  <Ionicons name="cloud-upload" size={20} color="#ffffff" />
+                  <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 16 }}>
+                    Add All ({stagedBooks.length}) Books to My Library
                   </Text>
-                ) : null}
-              </View>
-            </View>
-
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <TouchableOpacity
-                onPress={() => setScannedResult(null)}
-                style={{
-                  flex: 1,
-                  paddingVertical: 12,
-                  borderRadius: 12,
-                  backgroundColor: '#334155',
-                  alignItems: 'center',
-                }}
-              >
-                <Text style={{ color: '#cbd5e1', fontWeight: '700' }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleConfirmAdd}
-                style={{
-                  flex: 2,
-                  paddingVertical: 12,
-                  borderRadius: 12,
-                  backgroundColor: '#0284c7',
-                  alignItems: 'center',
-                  flexDirection: 'row',
-                  justifyContent: 'center',
-                  gap: 8,
-                }}
-              >
-                <Ionicons name="checkmark-circle" size={18} color="#ffffff" />
-                <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 15 }}>
-                  Add to My Library
-                </Text>
-              </TouchableOpacity>
-            </View>
+                </>
+              )}
+            </TouchableOpacity>
           </View>
         )}
 
