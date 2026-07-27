@@ -11,24 +11,88 @@ import { useAuth } from '../../src/context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
+type Mode = 'signin' | 'signup' | 'confirm';
+
 export default function LoginScreen() {
   const {
-    loginWithMagicLink,
+    signIn,
+    signUp,
+    confirmSignUp,
+    resendCode,
     loginWithBypass,
-    magicLinkSentTo,
-    completeMagicLinkLogin,
+    unconfirmedEmail,
+    setUnconfirmedEmail,
     isLoading,
   } = useAuth();
 
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [mode, setMode] = useState<Mode>(unconfirmedEmail ? 'confirm' : 'signin');
 
-  const handleSendMagicLink = async () => {
+  // Form states
+  const [email, setEmail] = useState(unconfirmedEmail || '');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
+
+  const handleSignIn = async () => {
     setErrorMessage(null);
-    const result = await loginWithMagicLink(email);
-    if (!result.success) {
-      setErrorMessage(result.error || 'Failed to send magic link');
+    setInfoMessage(null);
+    const res = await signIn(email.trim(), password);
+    if (res.success) {
+      router.replace('/(tabs)');
+    } else {
+      if (res.error?.includes('not confirmed')) {
+        setMode('confirm');
+      }
+      setErrorMessage(res.error || 'Sign in failed.');
+    }
+  };
+
+  const handleSignUp = async () => {
+    setErrorMessage(null);
+    setInfoMessage(null);
+
+    if (password !== confirmPassword) {
+      setErrorMessage('Passwords do not match.');
+      return;
+    }
+
+    const res = await signUp(email.trim(), password);
+    if (res.success) {
+      setInfoMessage('Account created! Check your email inbox for your 6-digit verification code.');
+      setMode('confirm');
+    } else {
+      setErrorMessage(res.error || 'Sign up failed.');
+    }
+  };
+
+  const handleConfirmCode = async () => {
+    setErrorMessage(null);
+    setInfoMessage(null);
+
+    const targetEmail = unconfirmedEmail || email.trim();
+    const res = await confirmSignUp(targetEmail, verificationCode.trim());
+    if (res.success) {
+      setInfoMessage('Email verified successfully! You can now log in with your credentials.');
+      setMode('signin');
+      setPassword('');
+    } else {
+      setErrorMessage(res.error || 'Verification failed. Check code and try again.');
+    }
+  };
+
+  const handleResendCode = async () => {
+    setErrorMessage(null);
+    setInfoMessage(null);
+    const targetEmail = unconfirmedEmail || email.trim();
+    const res = await resendCode(targetEmail);
+    if (res.success) {
+      setInfoMessage(`A fresh verification code was sent to ${targetEmail}.`);
+    } else {
+      setErrorMessage(res.error || 'Failed to resend verification code.');
     }
   };
 
@@ -63,8 +127,8 @@ export default function LoginScreen() {
           elevation: 10,
         }}
       >
-        {/* Logo & Title */}
-        <View style={{ alignItems: 'center', marginBottom: 28 }}>
+        {/* Logo & Application Title */}
+        <View style={{ alignItems: 'center', marginBottom: 24 }}>
           <View
             style={{
               width: 64,
@@ -73,7 +137,7 @@ export default function LoginScreen() {
               backgroundColor: '#0284c7',
               alignItems: 'center',
               justifyContent: 'center',
-              marginBottom: 16,
+              marginBottom: 14,
               shadowColor: '#0284c7',
               shadowOffset: { width: 0, height: 4 },
               shadowOpacity: 0.4,
@@ -85,72 +149,116 @@ export default function LoginScreen() {
           <Text style={{ color: '#f8fafc', fontSize: 26, fontWeight: '800', letterSpacing: 0.5 }}>
             LIBRARIAN
           </Text>
-          <Text style={{ color: '#94a3b8', fontSize: 14, marginTop: 4, textAlign: 'center' }}>
-            Your personal book catalog & series tracker
+          <Text style={{ color: '#94a3b8', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
+            AWS Cognito User Authentication & Library Cloud
           </Text>
         </View>
 
-        {magicLinkSentTo ? (
+        {/* Tab Switcher (Sign In vs Sign Up) */}
+        {mode !== 'confirm' && (
           <View
             style={{
-              backgroundColor: 'rgba(56, 189, 248, 0.1)',
-              borderColor: '#0284c7',
-              borderWidth: 1,
-              padding: 20,
-              borderRadius: 16,
-              alignItems: 'center',
+              flexDirection: 'row',
+              backgroundColor: '#0f172a',
+              borderRadius: 14,
+              padding: 4,
               marginBottom: 20,
+              borderWidth: 1,
+              borderColor: '#334155',
             }}
           >
-            <Ionicons name="mail-open-outline" size={48} color="#38bdf8" />
-            <Text
-              style={{
-                color: '#f8fafc',
-                fontSize: 16,
-                fontWeight: '700',
-                marginTop: 12,
-                textAlign: 'center',
-              }}
-            >
-              Magic Link Dispatched!
-            </Text>
-            <Text
-              style={{
-                color: '#94a3b8',
-                fontSize: 13,
-                textAlign: 'center',
-                marginTop: 6,
-                marginBottom: 16,
-              }}
-            >
-              We sent a passwordless sign-in link to{' '}
-              <Text style={{ color: '#38bdf8', fontWeight: '700' }}>{magicLinkSentTo}</Text>. Check your inbox!
-            </Text>
-
             <TouchableOpacity
               onPress={() => {
-                completeMagicLinkLogin(magicLinkSentTo);
-                router.replace('/(tabs)');
+                setMode('signin');
+                setErrorMessage(null);
+                setInfoMessage(null);
               }}
               style={{
-                backgroundColor: '#0284c7',
+                flex: 1,
                 paddingVertical: 10,
-                paddingHorizontal: 20,
-                borderRadius: 12,
-                width: '100%',
+                borderRadius: 10,
+                backgroundColor: mode === 'signin' ? '#0284c7' : 'transparent',
                 alignItems: 'center',
               }}
             >
-              <Text style={{ color: '#ffffff', fontWeight: '700', fontSize: 14 }}>
-                Simulate Clicking Magic Link
+              <Text
+                style={{
+                  color: mode === 'signin' ? '#ffffff' : '#94a3b8',
+                  fontWeight: '700',
+                  fontSize: 14,
+                }}
+              >
+                Sign In
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => {
+                setMode('signup');
+                setErrorMessage(null);
+                setInfoMessage(null);
+              }}
+              style={{
+                flex: 1,
+                paddingVertical: 10,
+                borderRadius: 10,
+                backgroundColor: mode === 'signup' ? '#0284c7' : 'transparent',
+                alignItems: 'center',
+              }}
+            >
+              <Text
+                style={{
+                  color: mode === 'signup' ? '#ffffff' : '#94a3b8',
+                  fontWeight: '700',
+                  fontSize: 14,
+                }}
+              >
+                Create Account
               </Text>
             </TouchableOpacity>
           </View>
-        ) : (
-          /* Passwordless Email Form */
+        )}
+
+        {/* Info & Error Banner Alerts */}
+        {infoMessage && (
+          <View
+            style={{
+              backgroundColor: 'rgba(56, 189, 248, 0.12)',
+              borderColor: '#0284c7',
+              borderWidth: 1,
+              padding: 14,
+              borderRadius: 12,
+              marginBottom: 16,
+            }}
+          >
+            <Text style={{ color: '#38bdf8', fontSize: 13, fontWeight: '600', textAlign: 'center' }}>
+              {infoMessage}
+            </Text>
+          </View>
+        )}
+
+        {errorMessage && (
+          <View
+            style={{
+              backgroundColor: 'rgba(239, 68, 68, 0.12)',
+              borderColor: '#ef4444',
+              borderWidth: 1,
+              padding: 14,
+              borderRadius: 12,
+              marginBottom: 16,
+            }}
+          >
+            <Text style={{ color: '#fca5a5', fontSize: 13, fontWeight: '600', textAlign: 'center' }}>
+              {errorMessage}
+            </Text>
+          </View>
+        )}
+
+        {/* MODE: SIGN IN */}
+        {mode === 'signin' && (
           <View>
-            <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 8 }}>
-              Passwordless Sign-In with Email
+            <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 6 }}>
+              Email Address
             </Text>
             <TextInput
               value={email}
@@ -168,18 +276,34 @@ export default function LoginScreen() {
                 fontSize: 15,
                 borderWidth: 1,
                 borderColor: '#334155',
-                marginBottom: 16,
+                marginBottom: 14,
               }}
             />
 
-            {errorMessage && (
-              <Text style={{ color: '#fca5a5', fontSize: 13, marginBottom: 12 }}>
-                {errorMessage}
-              </Text>
-            )}
+            <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 6 }}>
+              Password
+            </Text>
+            <TextInput
+              value={password}
+              onChangeText={setPassword}
+              placeholder="••••••••"
+              placeholderTextColor="#64748b"
+              secureTextEntry
+              style={{
+                backgroundColor: '#0f172a',
+                color: '#f8fafc',
+                borderRadius: 12,
+                paddingHorizontal: 16,
+                paddingVertical: 14,
+                fontSize: 15,
+                borderWidth: 1,
+                borderColor: '#334155',
+                marginBottom: 20,
+              }}
+            />
 
             <TouchableOpacity
-              onPress={handleSendMagicLink}
+              onPress={handleSignIn}
               disabled={isLoading}
               style={{
                 backgroundColor: '#0284c7',
@@ -189,16 +313,16 @@ export default function LoginScreen() {
                 justifyContent: 'center',
                 flexDirection: 'row',
                 gap: 8,
-                marginBottom: 20,
+                marginBottom: 16,
               }}
             >
               {isLoading ? (
                 <ActivityIndicator color="#ffffff" size="small" />
               ) : (
                 <>
-                  <Ionicons name="send-sharp" size={18} color="#ffffff" />
+                  <Ionicons name="log-in-outline" size={20} color="#ffffff" />
                   <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '700' }}>
-                    Send Magic Link
+                    Sign In to Cognito
                   </Text>
                 </>
               )}
@@ -206,16 +330,196 @@ export default function LoginScreen() {
           </View>
         )}
 
+        {/* MODE: SIGN UP */}
+        {mode === 'signup' && (
+          <View>
+            <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 6 }}>
+              Email Address
+            </Text>
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              placeholder="reader@example.com"
+              placeholderTextColor="#64748b"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              style={{
+                backgroundColor: '#0f172a',
+                color: '#f8fafc',
+                borderRadius: 12,
+                paddingHorizontal: 16,
+                paddingVertical: 14,
+                fontSize: 15,
+                borderWidth: 1,
+                borderColor: '#334155',
+                marginBottom: 14,
+              }}
+            />
+
+            <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 6 }}>
+              Password (Min 8 chars, 1 uppercase & 1 number)
+            </Text>
+            <TextInput
+              value={password}
+              onChangeText={setPassword}
+              placeholder="••••••••"
+              placeholderTextColor="#64748b"
+              secureTextEntry
+              style={{
+                backgroundColor: '#0f172a',
+                color: '#f8fafc',
+                borderRadius: 12,
+                paddingHorizontal: 16,
+                paddingVertical: 14,
+                fontSize: 15,
+                borderWidth: 1,
+                borderColor: '#334155',
+                marginBottom: 14,
+              }}
+            />
+
+            <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 6 }}>
+              Confirm Password
+            </Text>
+            <TextInput
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              placeholder="••••••••"
+              placeholderTextColor="#64748b"
+              secureTextEntry
+              style={{
+                backgroundColor: '#0f172a',
+                color: '#f8fafc',
+                borderRadius: 12,
+                paddingHorizontal: 16,
+                paddingVertical: 14,
+                fontSize: 15,
+                borderWidth: 1,
+                borderColor: '#334155',
+                marginBottom: 20,
+              }}
+            />
+
+            <TouchableOpacity
+              onPress={handleSignUp}
+              disabled={isLoading}
+              style={{
+                backgroundColor: '#0284c7',
+                paddingVertical: 14,
+                borderRadius: 12,
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexDirection: 'row',
+                gap: 8,
+                marginBottom: 16,
+              }}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#ffffff" size="small" />
+              ) : (
+                <>
+                  <Ionicons name="person-add-outline" size={18} color="#ffffff" />
+                  <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '700' }}>
+                    Create Account & Send Code
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* MODE: CONFIRM VERIFICATION CODE */}
+        {mode === 'confirm' && (
+          <View>
+            <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 6 }}>
+              Enter 6-Digit Email Verification Code
+            </Text>
+            <Text style={{ color: '#94a3b8', fontSize: 12, marginBottom: 12 }}>
+              Verification code sent to:{' '}
+              <Text style={{ color: '#38bdf8', fontWeight: '700' }}>
+                {unconfirmedEmail || email}
+              </Text>
+            </Text>
+
+            <TextInput
+              value={verificationCode}
+              onChangeText={setVerificationCode}
+              placeholder="123456"
+              placeholderTextColor="#64748b"
+              keyboardType="number-pad"
+              style={{
+                backgroundColor: '#0f172a',
+                color: '#f8fafc',
+                borderRadius: 12,
+                paddingHorizontal: 16,
+                paddingVertical: 14,
+                fontSize: 18,
+                fontWeight: '700',
+                letterSpacing: 4,
+                textAlign: 'center',
+                borderWidth: 1,
+                borderColor: '#0284c7',
+                marginBottom: 16,
+              }}
+            />
+
+            <TouchableOpacity
+              onPress={handleConfirmCode}
+              disabled={isLoading}
+              style={{
+                backgroundColor: '#0284c7',
+                paddingVertical: 14,
+                borderRadius: 12,
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexDirection: 'row',
+                gap: 8,
+                marginBottom: 12,
+              }}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#ffffff" size="small" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle-outline" size={20} color="#ffffff" />
+                  <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '700' }}>
+                    Verify & Activate Account
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4, marginBottom: 16 }}>
+              <TouchableOpacity onPress={handleResendCode} disabled={isLoading}>
+                <Text style={{ color: '#38bdf8', fontSize: 13, fontWeight: '600' }}>
+                  Resend Verification Code
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => {
+                  setUnconfirmedEmail(null);
+                  setMode('signin');
+                }}
+              >
+                <Text style={{ color: '#94a3b8', fontSize: 13 }}>
+                  Back to Sign In
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Divider */}
         <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 16 }}>
           <View style={{ flex: 1, height: 1, backgroundColor: '#334155' }} />
           <Text style={{ color: '#64748b', fontSize: 12, marginHorizontal: 12, fontWeight: '600' }}>
-            OR LOCAL DEV TEST
+            LOCAL DEV MODE
           </Text>
           <View style={{ flex: 1, height: 1, backgroundColor: '#334155' }} />
         </View>
 
-        {/* Local Dev Mode Bypass Login Button */}
+        {/* Instant Dev Bypass */}
         <TouchableOpacity
           onPress={handleDevBypass}
           style={{
@@ -234,10 +538,10 @@ export default function LoginScreen() {
           <Ionicons name="flash" size={18} color="#a78bfa" />
           <View style={{ alignItems: 'flex-start' }}>
             <Text style={{ color: '#ddd6fe', fontSize: 14, fontWeight: '800' }}>
-              Dev Mode: Instant Bypass Login
+              Instant Demo Bypass Login
             </Text>
             <Text style={{ color: '#a78bfa', fontSize: 11 }}>
-              Test locally without password or email magic link
+              Test locally without creating Cognito credentials
             </Text>
           </View>
         </TouchableOpacity>

@@ -34,135 +34,35 @@ interface LibraryContextType {
   };
 }
 
-const INITIAL_DEMO_BOOKS: Book[] = [
-  {
-    id: 'book-1',
-    ownerId: 'dev-user-12345',
-    isbn: '9780545010221',
-    title: 'Harry Potter and the Deathly Hallows',
-    authors: ['J.K. Rowling'],
-    coverUrl: 'https://images.openlibrary.org/b/id/14412329-L.jpg',
-    publisher: 'Arthur A. Levine Books',
-    publishDate: '2007',
-    pageCount: 759,
-    readStatus: 'read',
-    rating: 5,
-    review: 'An incredible epic conclusion to the Harry Potter saga! The Battle of Hogwarts is unforgettable.',
-    seriesId: 'series-hp',
-    seriesName: 'Harry Potter',
-    seriesVolumeNumber: 7,
-    dateAdded: '2026-01-10T10:00:00.000Z',
-    dateRead: '2026-02-15T18:30:00.000Z',
-  },
-  {
-    id: 'book-2',
-    ownerId: 'dev-user-12345',
-    isbn: '9780439358071',
-    title: 'Harry Potter and the Order of the Phoenix',
-    authors: ['J.K. Rowling'],
-    coverUrl: 'https://images.openlibrary.org/b/id/10523366-L.jpg',
-    publisher: 'Scholastic',
-    publishDate: '2003',
-    pageCount: 870,
-    readStatus: 'read',
-    rating: 4,
-    review: 'Darker tone, great character development for Dumbledore\'s Army.',
-    seriesId: 'series-hp',
-    seriesName: 'Harry Potter',
-    seriesVolumeNumber: 5,
-    dateAdded: '2026-01-05T10:00:00.000Z',
-    dateRead: '2026-01-20T18:30:00.000Z',
-  },
-  {
-    id: 'book-3',
-    ownerId: 'dev-user-12345',
-    isbn: '9780765311788',
-    title: 'Mistborn: The Final Empire',
-    authors: ['Brandon Sanderson'],
-    coverUrl: 'https://images.openlibrary.org/b/id/8311916-L.jpg',
-    publisher: 'Tor Books',
-    publishDate: '2006',
-    pageCount: 541,
-    readStatus: 'reading',
-    rating: 5,
-    review: 'The Allomancy magic system is mind-blowing! Kelsier and Vin are fantastic protagonists.',
-    seriesId: 'series-mistborn',
-    seriesName: 'Mistborn Era 1',
-    seriesVolumeNumber: 1,
-    dateAdded: '2026-03-01T12:00:00.000Z',
-  },
-  {
-    id: 'book-4',
-    ownerId: 'dev-user-12345',
-    isbn: '9780593135204',
-    title: 'Project Hail Mary',
-    authors: ['Andy Weir'],
-    coverUrl: 'https://images.openlibrary.org/b/id/12539704-L.jpg',
-    publisher: 'Ballantine Books',
-    publishDate: '2021',
-    pageCount: 496,
-    readStatus: 'read',
-    rating: 5,
-    review: 'Fist my bump! Rocky and Ryland Grace make one of the best sci-fi duos ever written.',
-    dateAdded: '2026-02-14T09:00:00.000Z',
-    dateRead: '2026-02-28T22:00:00.000Z',
-  },
-  {
-    id: 'book-5',
-    ownerId: 'dev-user-12345',
-    isbn: '9780441172719',
-    title: 'Dune',
-    authors: ['Frank Herbert'],
-    coverUrl: 'https://images.openlibrary.org/b/id/9103986-L.jpg',
-    publisher: 'Ace Books',
-    publishDate: '1965',
-    pageCount: 688,
-    readStatus: 'unread',
-    seriesId: 'series-dune',
-    seriesName: 'Dune Chronicles',
-    seriesVolumeNumber: 1,
-    dateAdded: '2026-04-01T15:00:00.000Z',
-  },
-  {
-    id: 'book-6',
-    ownerId: 'dev-user-12345',
-    isbn: '9780441013593',
-    title: 'Dune Messiah',
-    authors: ['Frank Herbert'],
-    coverUrl: 'https://images.openlibrary.org/b/id/8316314-L.jpg',
-    publisher: 'Ace Books',
-    publishDate: '1969',
-    pageCount: 336,
-    readStatus: 'unread',
-    seriesId: 'series-dune',
-    seriesName: 'Dune Chronicles',
-    seriesVolumeNumber: 2,
-    dateAdded: '2026-04-02T11:00:00.000Z',
-  }
-];
-
 const LibraryContext = createContext<LibraryContextType | undefined>(undefined);
 
 export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
-  const [books, setBooks] = useState<Book[]>(INITIAL_DEMO_BOOKS);
+  const { user, authToken } = useAuth();
+  const [books, setBooks] = useState<Book[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'unread' | 'reading' | 'read'>('all');
 
-  // Load books from backend API when component mounts or user changes
+  // Load books from API Gateway using Cognito JWT Token
   useEffect(() => {
     async function loadBackendBooks() {
-      const remoteBooks = await fetchBooksApi({ userId: user?.uid || 'dev-user-12345' });
-      if (remoteBooks && remoteBooks.length > 0) {
-        setBooks(remoteBooks);
+      if (!user) {
+        setBooks([]);
+        return;
       }
+
+      const remoteBooks = await fetchBooksApi({
+        authToken: authToken || undefined,
+        userId: user.uid,
+      });
+
+      setBooks(remoteBooks || []);
     }
     loadBackendBooks();
-  }, [user]);
+  }, [user, authToken]);
 
   const userBooks = useMemo(() => {
     if (!user) return [];
-    return books.filter((b) => b.ownerId === user.uid || b.ownerId === 'dev-user-12345');
+    return books;
   }, [books, user]);
 
   const filteredBooks = useMemo(() => {
@@ -250,21 +150,26 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return { success: false, error: errorMsg };
     }
 
-    const createdBook: Book = {
+    const tempBook: Book = {
       ...parseResult.data,
       id: 'book-' + Date.now(),
     };
 
-    // Optimistic update
-    setBooks((prev) => [createdBook, ...prev]);
+    // Optimistic local state update
+    setBooks((prev) => [tempBook, ...prev]);
 
-    // Send to backend API Gateway
-    const remoteBook = await addBookApi(input, { userId: ownerId });
+    // Send to backend API Gateway with Cognito JWT
+    const remoteBook = await addBookApi(input, {
+      authToken: authToken || undefined,
+      userId: ownerId,
+    });
+
     if (remoteBook) {
-      setBooks((prev) => prev.map((b) => (b.id === createdBook.id ? remoteBook : b)));
+      setBooks((prev) => prev.map((b) => (b.id === tempBook.id ? remoteBook : b)));
+      return { success: true, book: remoteBook };
     }
 
-    return { success: true, book: createdBook };
+    return { success: true, book: tempBook };
   };
 
   const updateBook = async (id: string, updates: Partial<Book>) => {
@@ -272,7 +177,10 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setBooks((prev) =>
       prev.map((b) => (b.id === id ? { ...b, ...updates } : b))
     );
-    await updateBookApi(id, updates, { userId: ownerId });
+    await updateBookApi(id, updates, {
+      authToken: authToken || undefined,
+      userId: ownerId,
+    });
   };
 
   const updateBookReview = async (id: string, reviewData: UpdateBookReviewInput) => {
@@ -290,7 +198,10 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const deleteBook = async (id: string) => {
     const ownerId = user?.uid || 'dev-user-12345';
     setBooks((prev) => prev.filter((b) => b.id !== id));
-    await deleteBookApi(id, { userId: ownerId });
+    await deleteBookApi(id, {
+      authToken: authToken || undefined,
+      userId: ownerId,
+    });
   };
 
   const getBookById = (id: string) => {
