@@ -138,6 +138,32 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const addBook = async (input: Omit<CreateBookInput, 'ownerId'>) => {
     const ownerId = user?.uid || 'dev-user-12345';
+
+    // Check for duplicate books by ISBN or exact Title
+    const cleanIsbn = (str?: string) => (str || '').replace(/[- ]/g, '').trim();
+    const inputIsbn = cleanIsbn(input.isbn);
+    const inputTitle = (input.title || '').trim().toLowerCase();
+
+    const existingBook = books.find((b) => {
+      const existingIsbn = cleanIsbn(b.isbn);
+      const existingTitle = (b.title || '').trim().toLowerCase();
+
+      if (inputIsbn && existingIsbn && inputIsbn === existingIsbn) {
+        return true;
+      }
+      if (inputTitle && existingTitle && inputTitle === existingTitle) {
+        return true;
+      }
+      return false;
+    });
+
+    if (existingBook) {
+      return {
+        success: false,
+        error: `Book "${existingBook.title}" already exists in your library!`,
+      };
+    }
+
     const newBookCandidate = {
       ...input,
       ownerId,

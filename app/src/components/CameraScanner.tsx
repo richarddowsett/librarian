@@ -20,7 +20,7 @@ interface CameraScannerProps {
 }
 
 export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged }) => {
-  const { addBook } = useLibrary();
+  const { addBook, books } = useLibrary();
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [isScanning, setIsScanning] = useState<boolean>(true);
   const [torchEnabled, setTorchEnabled] = useState<boolean>(false);
@@ -50,6 +50,9 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
       }
     })();
   }, []);
+
+  // Helper to normalize ISBNs
+  const cleanIsbnHelper = (str?: string) => (str || '').replace(/[- ]/g, '').trim();
 
   // Web Camera Stream setup
   useEffect(() => {
@@ -122,10 +125,19 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
 
   const handleBarCodeScanned = async (isbn: string) => {
     if (!isScanning || isSearching) return;
-    const cleanIsbn = isbn.replace(/[- ]/g, '').trim();
+    const cleanIsbn = cleanIsbnHelper(isbn);
 
-    // Prevent immediate duplicate scans of the same ISBN in the queue
-    if (stagedBooks.some((b) => b.isbn === cleanIsbn)) {
+    // Check if book already exists in current library collection
+    const existingInLibrary = books.find(
+      (b) => cleanIsbnHelper(b.isbn) === cleanIsbn && cleanIsbn !== ''
+    );
+    if (existingInLibrary) {
+      setSearchError(`Book "${existingInLibrary.title}" (ISBN: ${cleanIsbn}) already exists in your library!`);
+      return;
+    }
+
+    // Prevent duplicate scans of the same ISBN in the staging queue
+    if (stagedBooks.some((b) => cleanIsbnHelper(b.isbn) === cleanIsbn)) {
       showToast(`ISBN ${cleanIsbn} is already in your staging queue!`);
       return;
     }
@@ -135,10 +147,21 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
   };
 
   const lookupISBN = async (targetIsbn: string) => {
-    const cleanIsbn = targetIsbn.replace(/[- ]/g, '').trim();
+    const cleanIsbn = cleanIsbnHelper(targetIsbn);
     if (!cleanIsbn) {
       setSearchError('Please enter a valid ISBN code.');
       setIsSearching(false);
+      return;
+    }
+
+    // Check if book already exists in current library collection
+    const existingInLibrary = books.find(
+      (b) => cleanIsbnHelper(b.isbn) === cleanIsbn && cleanIsbn !== ''
+    );
+    if (existingInLibrary) {
+      setSearchError(`Book "${existingInLibrary.title}" (ISBN: ${cleanIsbn}) already exists in your library!`);
+      setIsSearching(false);
+      setIsScanning(true);
       return;
     }
 
@@ -148,9 +171,20 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
     try {
       const bookData = await fetchBookByISBN(cleanIsbn);
       if (bookData) {
+        // Double check title or ISBN against existing books
+        const titleDuplicate = books.find(
+          (b) => b.title.trim().toLowerCase() === bookData.title.trim().toLowerCase()
+        );
+        if (titleDuplicate) {
+          setSearchError(`Book "${titleDuplicate.title}" already exists in your library!`);
+          setIsSearching(false);
+          setIsScanning(true);
+          return;
+        }
+
         // Automatically push book to Staged Queue
         setStagedBooks((prev) => {
-          if (prev.some((b) => b.isbn === bookData.isbn)) return prev;
+          if (prev.some((b) => cleanIsbnHelper(b.isbn) === cleanIsbnHelper(bookData.isbn))) return prev;
           return [bookData, ...prev];
         });
         showToast(`Added "${bookData.title}" to Queue!`);
