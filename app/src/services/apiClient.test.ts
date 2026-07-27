@@ -56,6 +56,43 @@ describe('API Client Unit Tests', () => {
     );
   });
 
+  it('updateBookApi sends PUT request with updated fields', async () => {
+    const updates = { rating: 5, readStatus: 'read' as const };
+    const mockUpdatedBook = { id: 'book-123', title: 'Sample Book', ...updates, ownerId: 'user-1' };
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ book: mockUpdatedBook }),
+    } as Response);
+
+    const result = await updateBookApi('book-123', updates, { authToken: 'mock-token' });
+
+    expect(result).toEqual(mockUpdatedBook);
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/books/book-123'),
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify(updates),
+      })
+    );
+  });
+
+  it('deleteBookApi sends DELETE request', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+    } as Response);
+
+    const success = await deleteBookApi('book-123', { authToken: 'mock-token' });
+
+    expect(success).toBe(true);
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/books/book-123'),
+      expect.objectContaining({
+        method: 'DELETE',
+      })
+    );
+  });
+
   it('lookupIsbnApi encodes ISBN query parameter', async () => {
     const mockOpenLibraryBook = { title: 'Dune', isbn: '9780441172719' };
 
