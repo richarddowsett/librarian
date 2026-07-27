@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 export default function ProfileScreen() {
-  const { user, logout, loginWithBypass } = useAuth();
+  const { user, logout } = useAuth();
   const { stats } = useLibrary();
   const router = useRouter();
 
@@ -19,7 +19,7 @@ export default function ProfileScreen() {
           User Profile & Settings
         </Text>
         <Text style={{ color: '#94a3b8', fontSize: 14, marginTop: 2 }}>
-          Manage your account credentials, security preferences, and environment controls.
+          Manage your account information and collection statistics.
         </Text>
       </View>
 
@@ -88,7 +88,7 @@ export default function ProfileScreen() {
           padding: 20,
           borderWidth: 1,
           borderColor: '#334155',
-          marginBottom: 20,
+          marginBottom: 24,
         }}
       >
         <Text style={{ color: '#f8fafc', fontSize: 16, fontWeight: '700', marginBottom: 12 }}>
@@ -114,44 +114,6 @@ export default function ProfileScreen() {
             </Text>
           </View>
         </View>
-      </View>
-
-      {/* Security & Local Dev Controls */}
-      <View
-        style={{
-          backgroundColor: '#1e293b',
-          borderRadius: 20,
-          padding: 20,
-          borderWidth: 1,
-          borderColor: '#334155',
-          marginBottom: 24,
-        }}
-      >
-        <Text style={{ color: '#f8fafc', fontSize: 16, fontWeight: '700', marginBottom: 12 }}>
-          Security & Developer Tools
-        </Text>
-
-        <TouchableOpacity
-          onPress={() => loginWithBypass('Demo Collector (Bypass Active)')}
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            paddingVertical: 12,
-            borderBottomWidth: 1,
-            borderBottomColor: '#334155',
-          }}
-        >
-          <View>
-            <Text style={{ color: '#f8fafc', fontSize: 14, fontWeight: '600' }}>
-              Re-sync Dev Mode Demo User
-            </Text>
-            <Text style={{ color: '#94a3b8', fontSize: 12 }}>
-              Reset session to demo state with full mock library catalog
-            </Text>
-          </View>
-          <Ionicons name="refresh" size={20} color="#38bdf8" />
-        </TouchableOpacity>
       </View>
 
       {/* Logout Action */}
