@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useMemo, useEffect } from '
 import { Book, CreateBookInput, UpdateBookReviewInput, bookSchema } from '../schemas/book';
 import { useAuth } from './AuthContext';
 import { fetchBooksApi, addBookApi, updateBookApi, deleteBookApi } from '../services/apiClient';
+import { fetchAuthorCatalog, fetchSeriesCatalog, CatalogBook } from '../services/catalogService';
 
 export interface SeriesVolumeItem {
   volumeNumber: number;
@@ -26,6 +27,7 @@ export interface AuthorBookItem {
   isOwned: boolean;
   seriesName?: string;
   seriesVolumeNumber?: number;
+  coverUrl?: string;
   book?: Book;
 }
 
@@ -67,6 +69,8 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [books, setBooks] = useState<Book[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'unread' | 'reading' | 'read'>('all');
+  const [authorCatalogsMap, setAuthorCatalogsMap] = useState<Record<string, CatalogBook[]>>({});
+  const [seriesCatalogsMap, setSeriesCatalogsMap] = useState<Record<string, CatalogBook[]>>({});
 
   // Load books from API Gateway using Cognito JWT Token
   useEffect(() => {
@@ -90,6 +94,48 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (!user) return [];
     return books;
   }, [books, user]);
+
+  // Fetch author & series catalog metadata from Open Library / Google Books for user's books
+  useEffect(() => {
+    if (!userBooks.length) return;
+
+    // Unique authors
+    const uniqueAuthors = new Set<string>();
+    userBooks.forEach((b) => {
+      if (Array.isArray(b.authors)) {
+        b.authors.forEach((a) => {
+          const clean = a.trim();
+          if (clean) uniqueAuthors.add(clean);
+        });
+      }
+    });
+
+    uniqueAuthors.forEach(async (author) => {
+      if (!authorCatalogsMap[author]) {
+        const catalog = await fetchAuthorCatalog(author);
+        if (catalog && catalog.length > 0) {
+          setAuthorCatalogsMap((prev) => ({ ...prev, [author]: catalog }));
+        }
+      }
+    });
+
+    // Unique series names
+    const uniqueSeriesNames = new Set<string>();
+    userBooks.forEach((b) => {
+      if (b.seriesName && b.seriesName.trim()) {
+        uniqueSeriesNames.add(b.seriesName.trim());
+      }
+    });
+
+    uniqueSeriesNames.forEach(async (seriesName) => {
+      if (!seriesCatalogsMap[seriesName]) {
+        const catalog = await fetchSeriesCatalog(seriesName);
+        if (catalog && catalog.length > 0) {
+          setSeriesCatalogsMap((prev) => ({ ...prev, [seriesName]: catalog }));
+        }
+      }
+    });
+  }, [userBooks]);
 
   const filteredBooks = useMemo(() => {
     return userBooks.filter((book) => {
@@ -240,8 +286,34 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       });
     });
 
+    // Augment author overview with fetched external catalog items if available
+    result.forEach((authorOverview) => {
+      const externalCatalog = authorCatalogsMap[authorOverview.authorName];
+      if (externalCatalog && externalCatalog.length > 0) {
+        const existingTitles = new Set(
+          authorOverview.allBooks.map((b) => b.title.trim().toLowerCase())
+        );
+
+        externalCatalog.forEach((catItem, idx) => {
+          const cleanTitle = catItem.title.trim().toLowerCase();
+          if (!existingTitles.has(cleanTitle)) {
+            existingTitles.add(cleanTitle);
+            authorOverview.allBooks.push({
+              id: `cat-${authorOverview.authorName}-${idx}`,
+              title: catItem.title,
+              isOwned: false,
+              coverUrl: catItem.coverUrl,
+              seriesVolumeNumber: catItem.seriesVolumeNumber,
+            });
+          }
+        });
+
+        authorOverview.totalKnown = authorOverview.allBooks.length;
+      }
+    });
+
     return result.sort((a, b) => b.totalOwned - a.totalOwned);
-  }, [userBooks, seriesOverviews]);
+  }, [userBooks, seriesOverviews, authorCatalogsMap]);
 
   const addBook = async (input: Omit<CreateBookInput, 'ownerId'>) => {
     const ownerId = user?.uid || 'dev-user-12345';

@@ -511,10 +511,10 @@ export default function SeriesTrackerScreen() {
                                 justifyContent: 'center',
                               }}
                             >
-                              {isOwned && book?.coverUrl ? (
+                              {(isOwned && book?.coverUrl) || (!isOwned && item.coverUrl) ? (
                                 <Image
-                                  source={{ uri: book.coverUrl }}
-                                  style={{ width: '100%', height: '100%', resizeMode: 'cover' }}
+                                  source={{ uri: (isOwned && book?.coverUrl) ? book.coverUrl : item.coverUrl! }}
+                                  style={{ width: '100%', height: '100%', resizeMode: 'cover', opacity: isOwned ? 1.0 : 0.65 }}
                                 />
                               ) : isOwned ? (
                                 <Ionicons name="book" size={32} color="#64748b" />
