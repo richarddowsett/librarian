@@ -65,12 +65,20 @@ interface LibraryContextType {
 const LibraryContext = createContext<LibraryContextType | undefined>(undefined);
 
 export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, authToken } = useAuth();
+  const { user, authToken, logout } = useAuth();
   const [books, setBooks] = useState<Book[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'unread' | 'reading' | 'read'>('all');
   const [authorCatalogsMap, setAuthorCatalogsMap] = useState<Record<string, CatalogBook[]>>({});
   const [seriesCatalogsMap, setSeriesCatalogsMap] = useState<Record<string, CatalogBook[]>>({});
+
+  const handleUnauthorized = () => {
+    console.warn('401 Unauthorized response received. Logging out expired user session.');
+    if (typeof window !== 'undefined' && window.alert) {
+      window.alert('Your login session has expired. Please sign in again to access your library catalogue.');
+    }
+    logout();
+  };
 
   // Load books from API Gateway using Cognito JWT Token
   useEffect(() => {
@@ -83,6 +91,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const remoteBooks = await fetchBooksApi({
         authToken: authToken || undefined,
         userId: user.uid,
+        onUnauthorized: handleUnauthorized,
       });
 
       setBooks(remoteBooks || []);
@@ -367,6 +376,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const remoteBook = await addBookApi(input, {
       authToken: authToken || undefined,
       userId: ownerId,
+      onUnauthorized: handleUnauthorized,
     });
 
     if (remoteBook) {

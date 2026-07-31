@@ -6,6 +6,7 @@ const API_BASE_URL =
 export interface ApiOptions {
   authToken?: string;
   userId?: string;
+  onUnauthorized?: () => void;
 }
 
 function getHeaders(options?: ApiOptions): Record<string, string> {
@@ -23,6 +24,17 @@ function getHeaders(options?: ApiOptions): Record<string, string> {
   return headers;
 }
 
+function checkUnauthorized(response: Response, options?: ApiOptions): boolean {
+  if (response.status === 401 || response.status === 403) {
+    console.warn(`API returned ${response.status} Unauthorized for URL: ${response.url}`);
+    if (options?.onUnauthorized) {
+      options.onUnauthorized();
+    }
+    return true;
+  }
+  return false;
+}
+
 export async function fetchBooksApi(options?: ApiOptions): Promise<Book[]> {
   if (!API_BASE_URL) return [];
   try {
@@ -30,6 +42,11 @@ export async function fetchBooksApi(options?: ApiOptions): Promise<Book[]> {
       method: 'GET',
       headers: getHeaders(options),
     });
+
+    if (checkUnauthorized(response, options)) {
+      return [];
+    }
+
     if (!response.ok) return [];
     const data = await response.json();
     return data.books || [];
@@ -47,6 +64,11 @@ export async function addBookApi(input: Omit<CreateBookInput, 'ownerId'>, option
       headers: getHeaders(options),
       body: JSON.stringify(input),
     });
+
+    if (checkUnauthorized(response, options)) {
+      return null;
+    }
+
     if (!response.ok) return null;
     const data = await response.json();
     return data.book || null;
@@ -64,6 +86,11 @@ export async function updateBookApi(id: string, updates: Partial<Book>, options?
       headers: getHeaders(options),
       body: JSON.stringify(updates),
     });
+
+    if (checkUnauthorized(response, options)) {
+      return null;
+    }
+
     if (!response.ok) return null;
     const data = await response.json();
     return data.book || null;
@@ -80,6 +107,11 @@ export async function deleteBookApi(id: string, options?: ApiOptions): Promise<b
       method: 'DELETE',
       headers: getHeaders(options),
     });
+
+    if (checkUnauthorized(response, options)) {
+      return false;
+    }
+
     return response.ok;
   } catch (error) {
     console.error('deleteBookApi Error:', error);
@@ -94,6 +126,11 @@ export async function lookupIsbnApi(isbn: string, options?: ApiOptions): Promise
       method: 'GET',
       headers: getHeaders(options),
     });
+
+    if (checkUnauthorized(response, options)) {
+      return null;
+    }
+
     if (!response.ok) return null;
     const data = await response.json();
     return data.book || null;

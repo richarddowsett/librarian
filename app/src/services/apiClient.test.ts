@@ -28,6 +28,19 @@ describe('API Client Unit Tests', () => {
     );
   });
 
+  it('fetchBooksApi triggers onUnauthorized callback and returns empty array on 401 Unauthorized status', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      status: 401,
+      ok: false,
+    } as Response);
+
+    const onUnauthorized = jest.fn();
+    const books = await fetchBooksApi({ authToken: 'expired-token', onUnauthorized });
+
+    expect(books).toEqual([]);
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
+  });
+
   it('addBookApi sends POST request with JSON payload', async () => {
     const input = {
       title: 'New Book',
