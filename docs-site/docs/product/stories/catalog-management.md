@@ -1,7 +1,7 @@
 ---
-id: catalog-management
-title: Library Cataloging & Search User Stories
-sidebar_label: Cataloging & Search Stories
+id: "catalog-management"
+title: "Library Cataloging & Search User Stories"
+sidebar_label: "Cataloging & Search Stories"
 sidebar_position: 2
 ---
 

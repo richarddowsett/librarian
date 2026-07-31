@@ -1,7 +1,7 @@
 ---
-id: roadmap
-title: Librarian Product Roadmap
-sidebar_label: Roadmap
+id: "roadmap"
+title: "Librarian Product Roadmap"
+sidebar_label: "Roadmap"
 sidebar_position: 1
 ---
 

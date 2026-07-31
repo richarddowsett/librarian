@@ -1,7 +1,7 @@
 ---
-id: story-cognito-auth-scanner
-title: User Story: Cognito Sign-Up & ISBN Scanning
-sidebar_label: Auth & Scanner Story
+id: "story-cognito-auth-scanner"
+title: "User Story: Cognito Sign-Up & ISBN Scanning"
+sidebar_label: "Auth & Scanner Story"
 sidebar_position: 4
 ---
 

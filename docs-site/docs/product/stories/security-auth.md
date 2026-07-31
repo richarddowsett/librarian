@@ -1,7 +1,7 @@
 ---
-id: security-auth
-title: Secure Identity & Access User Stories
-sidebar_label: Security & Auth Stories
+id: "security-auth"
+title: "Secure Identity & Access User Stories"
+sidebar_label: "Security & Auth Stories"
 sidebar_position: 1
 ---
 

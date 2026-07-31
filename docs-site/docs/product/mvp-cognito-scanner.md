@@ -1,7 +1,7 @@
 ---
-id: mvp-cognito-scanner
-title: MVP Spec: Cognito Auth & Barcode Scanner
-sidebar_label: MVP: Auth & Scanner
+id: "mvp-cognito-scanner"
+title: "MVP Spec: Cognito Auth & Barcode Scanner"
+sidebar_label: "MVP: Auth & Scanner"
 sidebar_position: 2
 ---
 

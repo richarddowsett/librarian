@@ -1,7 +1,7 @@
 ---
-id: series-tracking
-title: Series Tracking & Wishlist User Stories
-sidebar_label: Series Tracking Stories
+id: "series-tracking"
+title: "Series Tracking & Wishlist User Stories"
+sidebar_label: "Series Tracking Stories"
 sidebar_position: 3
 ---
 

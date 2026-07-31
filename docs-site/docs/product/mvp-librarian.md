@@ -1,7 +1,7 @@
 ---
-id: mvp-librarian
-title: Librarian MVP Specification
-sidebar_label: MVP Specification
+id: "mvp-librarian"
+title: "Librarian MVP Specification"
+sidebar_label: "MVP Specification"
 sidebar_position: 2
 ---
 
