@@ -1,7 +1,7 @@
 import { Book } from '../schemas/book';
-import { AuthorOverview, AuthorBookItem } from './LibraryContext';
+import { AuthorOverview, AuthorBookItem, SeriesOverview, SeriesVolumeItem } from './LibraryContext';
 
-function computeAuthorOverviews(userBooks: Book[]): AuthorOverview[] {
+function computeAuthorOverviews(userBooks: Book[], externalCatalog: Record<string, { title: string; coverUrl?: string }[]> = {}): AuthorOverview[] {
   const authorMap = new Map<string, Book[]>();
 
   userBooks.forEach((book) => {
@@ -46,10 +46,31 @@ function computeAuthorOverviews(userBooks: Book[]): AuthorOverview[] {
     });
   });
 
+  // Augment with external catalog items if available (display-only preview)
+  result.forEach((authorOverview) => {
+    const catalog = externalCatalog[authorOverview.authorName];
+    if (catalog && catalog.length > 0) {
+      const existingTitles = new Set(authorOverview.allBooks.map((b) => b.title.trim().toLowerCase()));
+      catalog.forEach((catItem, idx) => {
+        const cleanTitle = catItem.title.trim().toLowerCase();
+        if (!existingTitles.has(cleanTitle)) {
+          existingTitles.add(cleanTitle);
+          authorOverview.allBooks.push({
+            id: `cat-${authorOverview.authorName}-${idx}`,
+            title: catItem.title,
+            isOwned: false,
+            coverUrl: catItem.coverUrl,
+          });
+        }
+      });
+      authorOverview.totalKnown = authorOverview.allBooks.length;
+    }
+  });
+
   return result.sort((a, b) => b.totalOwned - a.totalOwned);
 }
 
-describe('Author Collections Aggregation', () => {
+describe('Author & Series Collections Data Isolation', () => {
   it('groups books by author correctly and sorts authors by books owned count', () => {
     const sampleBooks: Book[] = [
       {
@@ -98,5 +119,52 @@ describe('Author Collections Aggregation', () => {
     const andrewChild = authorOverviews.find((a: AuthorOverview) => a.authorName === 'Andrew Child');
     expect(andrewChild).toBeDefined();
     expect(andrewChild?.totalOwned).toBe(1);
+  });
+
+  it('VERIFIES: Unowned catalog books remain display-only previews and NEVER mutate or get added to user library books', () => {
+    const ownedUserBooks: Book[] = [
+      {
+        id: 'owned-1',
+        ownerId: 'user-123',
+        isbn: '9780307743657',
+        title: 'The Shining',
+        authors: ['Stephen King'],
+        readStatus: 'read',
+      },
+    ];
+
+    const externalStephenKingCatalog = [
+      { title: 'The Shining' },
+      { title: 'It' },
+      { title: 'Misery' },
+      { title: 'Pet Sematary' },
+      { title: 'The Stand' },
+    ];
+
+    const authorOverviews = computeAuthorOverviews(ownedUserBooks, {
+      'Stephen King': externalStephenKingCatalog,
+    });
+
+    const kingOverview = authorOverviews.find((a) => a.authorName === 'Stephen King')!;
+    expect(kingOverview).toBeDefined();
+
+    // 1. Owned books count for Stephen King must strictly equal 1
+    expect(kingOverview.totalOwned).toBe(1);
+    expect(kingOverview.books.length).toBe(1);
+    expect(kingOverview.books[0].title).toBe('The Shining');
+
+    // 2. Total known books in author collection is 5 (1 owned + 4 unowned catalog books)
+    expect(kingOverview.totalKnown).toBe(5);
+    expect(kingOverview.allBooks.length).toBe(5);
+
+    // 3. Unowned catalog books MUST have isOwned === false
+    const unownedItems = kingOverview.allBooks.filter((item) => !item.isOwned);
+    expect(unownedItems.length).toBe(4);
+    expect(unownedItems.map((i) => i.title)).toEqual(['It', 'Misery', 'Pet Sematary', 'The Stand']);
+
+    // 4. CRITICAL CONTRACT: Owned library books list is NOT mutated or contaminated by unowned books
+    expect(ownedUserBooks.length).toBe(1);
+    expect(ownedUserBooks.map((b) => b.title)).toEqual(['The Shining']);
+    expect(ownedUserBooks.some((b) => b.title === 'Misery')).toBe(false);
   });
 });
