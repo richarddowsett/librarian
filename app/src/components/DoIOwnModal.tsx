@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Modal,
   View,
@@ -7,8 +7,10 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useLibrary } from '../context/LibraryContext';
 import { Book } from '../schemas/book';
 
@@ -21,8 +23,57 @@ export const DoIOwnModal: React.FC<DoIOwnModalProps> = ({ visible, onClose }) =>
   const { books, addBook } = useLibrary();
   const [query, setQuery] = useState<string>('');
   const [addedBookId, setAddedBookId] = useState<string | null>(null);
+  const [isCameraScanning, setIsCameraScanning] = useState<boolean>(false);
+  const [permission, requestPermission] = useCameraPermissions();
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    if (visible) {
+      setQuery('');
+      setAddedBookId(null);
+      setIsCameraScanning(false);
+    }
+  }, [visible]);
 
   if (!visible) return null;
+
+  const playBeep = () => {
+    try {
+      if (typeof window !== 'undefined') {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContextClass) {
+          const audioCtx = new AudioContextClass();
+          const oscillator = audioCtx.createOscillator();
+          const gainNode = audioCtx.createGain();
+          oscillator.type = 'sine';
+          oscillator.frequency.setValueAtTime(1760, audioCtx.currentTime);
+          gainNode.gain.setValueAtTime(0.35, audioCtx.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.12);
+          oscillator.connect(gainNode);
+          gainNode.connect(audioCtx.destination);
+          oscillator.start(audioCtx.currentTime);
+          oscillator.stop(audioCtx.currentTime + 0.12);
+        }
+      }
+    } catch (e) {
+      console.warn('Audio beep failed:', e);
+    }
+  };
+
+  const handleBarcodeScanned = (scannedIsbn: string) => {
+    if (!scannedIsbn) return;
+    playBeep();
+    setQuery(scannedIsbn);
+    setIsCameraScanning(false);
+  };
+
+  const startCameraScan = async () => {
+    if (Platform.OS !== 'web' && (!permission || !permission.granted)) {
+      const res = await requestPermission();
+      if (!res.granted) return;
+    }
+    setIsCameraScanning(true);
+  };
 
   const cleanQuery = query.trim().toLowerCase();
   const cleanIsbn = cleanQuery.replace(/[- ]/g, '');
@@ -36,12 +87,6 @@ export const DoIOwnModal: React.FC<DoIOwnModalProps> = ({ visible, onClose }) =>
         return titleMatch || authorMatch || isbnMatch;
       })
     : [];
-
-  const isExactMatch = matchingBooks.some(
-    (b) =>
-      b.title.toLowerCase().trim() === cleanQuery ||
-      (cleanIsbn && b.isbn && b.isbn.replace(/[- ]/g, '') === cleanIsbn)
-  );
 
   const hasSearched = cleanQuery.length >= 2;
 
@@ -135,34 +180,131 @@ export const DoIOwnModal: React.FC<DoIOwnModalProps> = ({ visible, onClose }) =>
           </View>
 
           <ScrollView style={{ padding: 20 }}>
-            {/* Instant Checker Search Bar */}
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                backgroundColor: '#0f172a',
-                borderRadius: 16,
-                paddingHorizontal: 16,
-                paddingVertical: 12,
-                borderWidth: 2,
-                borderColor: hasSearched ? (matchingBooks.length > 0 ? '#10b981' : '#38bdf8') : '#334155',
-                marginBottom: 20,
-              }}
-            >
-              <Ionicons name="search" size={20} color="#94a3b8" style={{ marginRight: 10 }} />
-              <TextInput
-                value={query}
-                onChangeText={setQuery}
-                placeholder="Type title, author, or barcode ISBN..."
-                placeholderTextColor="#64748b"
-                autoFocus
-                style={{ flex: 1, color: '#f8fafc', fontSize: 16, fontWeight: '600' }}
-              />
-              {query.length > 0 && (
-                <TouchableOpacity onPress={() => setQuery('')}>
-                  <Ionicons name="close-circle" size={20} color="#64748b" />
+            {/* Live Camera Scanner Box inside Modal */}
+            {isCameraScanning ? (
+              <View
+                style={{
+                  height: 220,
+                  backgroundColor: '#0f172a',
+                  borderRadius: 16,
+                  overflow: 'hidden',
+                  borderWidth: 2,
+                  borderColor: '#38bdf8',
+                  marginBottom: 20,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {Platform.OS !== 'web' ? (
+                  <CameraView
+                    style={{ width: '100%', height: '100%' }}
+                    onBarcodeScanned={({ data }) => handleBarcodeScanned(data)}
+                  >
+                    <View
+                      style={{
+                        flex: 1,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: 'rgba(0,0,0,0.3)',
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 220,
+                          height: 120,
+                          borderWidth: 2,
+                          borderColor: '#38bdf8',
+                          borderRadius: 12,
+                          backgroundColor: 'rgba(56, 189, 248, 0.08)',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <View style={{ width: '80%', height: 2, backgroundColor: '#ef4444' }} />
+                      </View>
+                      <Text style={{ color: '#ffffff', fontSize: 12, marginTop: 8, fontWeight: '600' }}>
+                        Point camera at book barcode
+                      </Text>
+                    </View>
+                  </CameraView>
+                ) : (
+                  <View style={{ padding: 20, alignItems: 'center' }}>
+                    <Ionicons name="barcode-outline" size={48} color="#38bdf8" />
+                    <Text style={{ color: '#f8fafc', fontSize: 14, fontWeight: '700', marginTop: 8 }}>
+                      Webcam Scanner Ready
+                    </Text>
+                    <Text style={{ color: '#94a3b8', fontSize: 12, textAlign: 'center', marginTop: 4 }}>
+                      Hold book barcode up to camera or type ISBN manually below.
+                    </Text>
+                  </View>
+                )}
+
+                <TouchableOpacity
+                  onPress={() => setIsCameraScanning(false)}
+                  style={{
+                    position: 'absolute',
+                    top: 10,
+                    right: 10,
+                    backgroundColor: 'rgba(15, 23, 42, 0.8)',
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 12,
+                  }}
+                >
+                  <Text style={{ color: '#f8fafc', fontSize: 12, fontWeight: '700' }}>Cancel Camera</Text>
                 </TouchableOpacity>
-              )}
+              </View>
+            ) : null}
+
+            {/* Instant Checker Search Bar & Camera Button */}
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
+              <View
+                style={{
+                  flex: 1,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: '#0f172a',
+                  borderRadius: 16,
+                  paddingHorizontal: 16,
+                  paddingVertical: 12,
+                  borderWidth: 2,
+                  borderColor: hasSearched ? (matchingBooks.length > 0 ? '#10b981' : '#38bdf8') : '#334155',
+                }}
+              >
+                <Ionicons name="search" size={20} color="#94a3b8" style={{ marginRight: 10 }} />
+                <TextInput
+                  value={query}
+                  onChangeText={setQuery}
+                  placeholder="Type title, author, or barcode ISBN..."
+                  placeholderTextColor="#64748b"
+                  autoFocus={!isCameraScanning}
+                  style={{ flex: 1, color: '#f8fafc', fontSize: 15, fontWeight: '600' }}
+                />
+                {query.length > 0 && (
+                  <TouchableOpacity onPress={() => setQuery('')}>
+                    <Ionicons name="close-circle" size={20} color="#64748b" />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Barcode Scanner Launch Button */}
+              <TouchableOpacity
+                onPress={startCameraScan}
+                style={{
+                  backgroundColor: '#0284c7',
+                  borderRadius: 16,
+                  paddingHorizontal: 14,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexDirection: 'row',
+                  gap: 6,
+                }}
+              >
+                <Ionicons name="barcode-outline" size={22} color="#ffffff" />
+                <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 13 }}>
+                  Scan Barcode
+                </Text>
+              </TouchableOpacity>
             </View>
 
             {/* Result State Cards */}
@@ -349,7 +491,7 @@ export const DoIOwnModal: React.FC<DoIOwnModalProps> = ({ visible, onClose }) =>
                   Stand in front of bookstore shelf
                 </Text>
                 <Text style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', marginTop: 6, maxWidth: 360 }}>
-                  Type a title, author name, or ISBN barcode above to instantly check if you already own the book!
+                  Tap "Scan Barcode" above to scan any book barcode directly, or type a title, author, or ISBN manually!
                 </Text>
               </View>
             )}
