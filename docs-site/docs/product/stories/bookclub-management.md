@@ -1,8 +1,8 @@
 ---
-id: story-bookclub-management
-title: User Stories: Book Club Management & Monetization
-sidebar_label: Story: Book Club Engine
-sidebar_position: 4
+id: "story-bookclub-management"
+title: "User Stories: Book Club Management & Monetization"
+sidebar_label: "Book Club Engine Stories"
+sidebar_position: 5
 ---
 
 # User Stories: Book Club Management & Monetization 📖👥
@@ -103,10 +103,10 @@ sidebar_position: 4
 
 ### Backend (Node.js & AWS Lambda)
 - [ ] Implement `POST /clubs/{id}/invite` endpoint generating HMAC-SHA256 tokenized URLs.
-- [ ] Implement `POST /clubs/{id}/vote` endpoint with duplicate-vote validation in DynamoDB.
+- [ ] Implement `POST /clubs/{id}/vote` endpoint with duplicate-vote validation in PostgreSQL.
 - [ ] Implement `POST /clubs/{id}/checkout` using Stripe Connect `PaymentIntents` with `application_fee_amount`.
 - [ ] Set up WebSocket serverless authorizer for real-time chapter chat room routing.
 
 ### Security & Database
-- [ ] Update `firestore.rules` or DynamoDB IAM FGAC policies to restrict `clubId` data access to confirmed club members.
+- [ ] Implement PostgreSQL row-level security or join table scoping to restrict `club_id` data access to confirmed club members.
 - [ ] Implement input sanitization middleware against HTML/script injection in message feeds.

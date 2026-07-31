@@ -1,7 +1,8 @@
 ---
-id: story-chat-with-paige
-title: User Story: Chat with Paige (Conversational AI Librarian)
-sidebar_label: Story: Chat with Paige
+id: "story-chat-with-paige"
+title: "User Story: Chat with Paige (Conversational AI Librarian)"
+sidebar_label: "Story: Chat with Paige"
+sidebar_position: 6
 ---
 
 # User Story: Chat with Paige (Conversational AI Librarian)
@@ -17,14 +18,14 @@ sidebar_label: Story: Chat with Paige
 ```gherkin
 Given I have 5 books from "Dune" in my scanned collection
 When I open the chat tab and ask Paige "Do I own Chapterhouse: Dune?"
-Then Paige queries my DynamoDB collection via tool calling
-And responds in natural language: "Yes, you scanned Chapterhouse: Dune on July 12th! You currently own 5 out of 6 main Dune novels."
+Then Paige queries my PostgreSQL collection via tool calling
+And responds in natural language: "Yes, you added Chapterhouse: Dune on July 12th! You currently own 5 out of 6 main Dune novels."
 ```
 
 ### Conversational Recommendation
 ```gherkin
 Given I ask Paige "Recommend a fast-paced thriller from my unread shelf"
-When Paige evaluates my collection items flagged as "Unread" with tag "Thriller"
+When Paige evaluates my collection items flagged as "Unread" with category "Thriller"
 Then Paige suggests a specific title with a brief friendly pitch based on book metadata
 ```
 
@@ -37,7 +38,7 @@ Then Paige suggests a specific title with a brief friendly pitch based on book m
 
 ### Backend & AI Logic (Node.js / Lambda / Bedrock or Gemini API)
 * `POST /chat` endpoint backed by Function Calling / Tool Use.
-* **Library Tool:** `query_user_library(ownerId, titleQuery, seriesQuery)` retrieves relevant items from DynamoDB.
+* **Library Tool:** `query_user_library(user_id, titleQuery, seriesQuery)` retrieves relevant items from Amazon Aurora Serverless v2 PostgreSQL `user_books` table.
 * System prompt persona definition for **Paige**: warm, knowledgeable, concise, and enthusiastic about books.
 
 ### Security

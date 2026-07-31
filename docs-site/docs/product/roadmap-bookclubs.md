@@ -1,7 +1,7 @@
 ---
-id: roadmap-bookclubs
-title: Product Roadmap - Paige Book Clubs Engine
-sidebar_label: Book Clubs Roadmap
+id: "roadmap-bookclubs"
+title: "Product Roadmap - Paige Book Clubs Engine"
+sidebar_label: "Book Clubs Roadmap"
 sidebar_position: 4
 ---
 
@@ -11,7 +11,7 @@ sidebar_position: 4
 
 ```mermaid
 graph TD
-    P1["Phase 1: Security & Access Control<br>(RBAC, Signed Invites, FGAC by ClubId)"] --> P2["Phase 2: Core Club Experience<br>(Invites, Voting, Chapter Chat, Meetings)"]
+    P1["Phase 1: Security & Access Control<br>(RBAC, Signed Invites, PostgreSQL Scoping)"] --> P2["Phase 2: Core Club Experience<br>(Invites, Voting, Chapter Chat, Meetings)"]
     P2 --> P3["Phase 3: AI Co-Host & Automation<br>(Chapter Prompts, Summary, Spoiler Shield)"]
     P3 --> P4["Phase 4: Monetization Engine<br>(Host Pro SaaS, Paid Clubs, Group Book Buys)"]
 
@@ -34,7 +34,7 @@ Before opening multi-user communication channels, establish strict authorization
   * Public vs. Private vs. Unlisted club visibility.
   * Time-limited, single-use, or max-redemption signed JWT invite links to prevent invite link spam/abuse.
 * **Data Isolation & WebSockets Security**:
-  * DynamoDB Fine-Grained Access Control (FGAC) enforcing `clubId` and user authorization for all reads/writes.
+  * Amazon Aurora Serverless v2 PostgreSQL database tables enforcing `club_id` and user authorization for all reads/writes.
   * WSS (WebSocket) authentication authorizer checking JWT tokens on every real-time chat connection.
 * **Content Moderation & Input Sanitization**:
   * XSS and injection prevention on all chat messages and club description fields.

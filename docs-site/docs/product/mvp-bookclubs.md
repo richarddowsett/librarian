@@ -1,7 +1,7 @@
 ---
-id: mvp-bookclubs
-title: MVP Spec: Paige Book Clubs & Community Engine
-sidebar_label: MVP: Book Clubs
+id: "mvp-bookclubs"
+title: "MVP Spec: Paige Book Clubs & Community Engine"
+sidebar_label: "MVP: Book Clubs"
 sidebar_position: 5
 ---
 
@@ -23,8 +23,8 @@ sidebar_position: 5
 ---
 
 ## 🚫 Out of Scope for MVP
-* Native video call streaming inside the app (we will rely on deep links to Zoom, Google Meet, or Discord).
-* Physical print-on-demand fulfillment (we will rely on external affiliate purchase links for Phase 1).
+* Native video call streaming inside the app (relying on deep links to Zoom, Google Meet, or Discord).
+* Physical print-on-demand fulfillment (relying on external affiliate purchase links).
 
 ---
 
@@ -74,6 +74,6 @@ sequenceDiagram
 
 ## 🔒 Security & Performance Architecture
 
-* **Fine-Grained Access Control (FGAC)**: DynamoDB tables keyed by `clubId#memberSub` ensure non-members cannot read club chat or vote data.
+* **Database & Access Control**: Amazon Aurora Serverless v2 PostgreSQL tables scoped by `club_id` and `user_id` ensure non-members cannot read club chat or vote data.
 * **API Gateway JWT Authorizer**: Every request is validated against AWS Cognito User Pool claims.
 * **Signed Invite Tokens**: HMAC-SHA256 signed invite payloads prevent link forgery and unauthorized club joins.

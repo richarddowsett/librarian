@@ -1,7 +1,8 @@
 ---
-id: story-llm-series-tracker
-title: User Story: LLM-Powered Series Completion & Reading Order
-sidebar_label: Story: Series Tracker
+id: "story-llm-series-tracker"
+title: "User Story: LLM-Powered Series Completion & Reading Order"
+sidebar_label: "Story: Series Tracker"
+sidebar_position: 7
 ---
 
 # User Story: LLM-Powered Series Completion & Reading Order
@@ -34,7 +35,7 @@ And show a horizontal scroll view of all 5 owned Stephen King titles with read s
 
 ### LLM Hybrid Resolution for Messy Metadata
 ```gherkin
-Given I scan a book belonging to a complex universe with incomplete Open Library series metadata
+Given I scan a book belonging to a complex universe with incomplete Google Books series metadata
 When the backend API processes the series grouping
 Then the system detects incomplete series metadata
 And dispatches a structured prompt to the LLM
@@ -52,11 +53,11 @@ And the LLM returns a validated JSON payload containing total volume count, miss
 * Toggle switch between "Release Order" and "Chronological Reading Order".
 
 ### Backend (Node.js / TypeScript Lambda)
-* `GET /series` endpoint querying DynamoDB for user's books grouped by `seriesId`.
+* `GET /series` endpoint querying Amazon Aurora Serverless v2 PostgreSQL `user_books` table grouped by `series_id`.
 * `GET /authors` or in-memory context aggregation for grouping user books by author.
-* Deterministic parser for Open Library / Google Books volume numbers.
+* Deterministic parser for Google Books volume numbers.
 * LLM Service module using structured JSON Schema invocation (Gemini / Bedrock) for fallback resolution.
 
 ### Security & Data Model
-* Scoped DynamoDB access using Cognito `sub` partition key.
+* Scoped PostgreSQL access using Cognito `sub` (`user_id`).
 * Output sanitization on LLM responses to prevent UI injection vulnerabilities.
