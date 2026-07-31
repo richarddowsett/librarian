@@ -1,5 +1,5 @@
 import { Book } from '../schemas/book';
-import { AuthorOverview } from './LibraryContext';
+import { AuthorOverview, AuthorBookItem } from './LibraryContext';
 
 function computeAuthorOverviews(userBooks: Book[]): AuthorOverview[] {
   const authorMap = new Map<string, Book[]>();
@@ -23,11 +23,26 @@ function computeAuthorOverviews(userBooks: Book[]): AuthorOverview[] {
 
   const result: AuthorOverview[] = [];
   authorMap.forEach((booksForAuthor, authorName) => {
-    const sortedBooks = [...booksForAuthor].sort((a, b) => a.title.localeCompare(b.title));
+    const sortedOwned = [...booksForAuthor].sort((a, b) => a.title.localeCompare(b.title));
+    const allBooks: AuthorBookItem[] = [];
+
+    sortedOwned.forEach((book) => {
+      allBooks.push({
+        id: book.id || `owned-${book.title}`,
+        title: book.title,
+        isOwned: true,
+        seriesName: book.seriesName || undefined,
+        seriesVolumeNumber: book.seriesVolumeNumber || undefined,
+        book,
+      });
+    });
+
     result.push({
       authorName,
-      totalOwned: sortedBooks.length,
-      books: sortedBooks,
+      totalOwned: sortedOwned.length,
+      totalKnown: allBooks.length,
+      books: sortedOwned,
+      allBooks,
     });
   });
 
@@ -71,6 +86,8 @@ describe('Author Collections Aggregation', () => {
     expect(authorOverviews[0].authorName).toBe('Stephen King');
     expect(authorOverviews[0].totalOwned).toBe(2);
     expect(authorOverviews[0].books.map((b: Book) => b.title)).toEqual(['It', 'The Shining']);
+    expect(authorOverviews[0].allBooks.length).toBe(2);
+    expect(authorOverviews[0].allBooks.every((item) => item.isOwned)).toBe(true);
 
     // Lee Child and Andrew Child have 1 book each
     const leeChild = authorOverviews.find((a: AuthorOverview) => a.authorName === 'Lee Child');

@@ -3,6 +3,13 @@ import { Book, CreateBookInput, UpdateBookReviewInput, bookSchema } from '../sch
 import { useAuth } from './AuthContext';
 import { fetchBooksApi, addBookApi, updateBookApi, deleteBookApi } from '../services/apiClient';
 
+export interface SeriesVolumeItem {
+  volumeNumber: number;
+  isOwned: boolean;
+  title: string;
+  book?: Book;
+}
+
 export interface SeriesOverview {
   seriesId: string;
   seriesName: string;
@@ -10,12 +17,24 @@ export interface SeriesOverview {
   maxVolumeOwned: number;
   books: Book[];
   missingVolumes: number[];
+  allVolumes: SeriesVolumeItem[];
+}
+
+export interface AuthorBookItem {
+  id: string;
+  title: string;
+  isOwned: boolean;
+  seriesName?: string;
+  seriesVolumeNumber?: number;
+  book?: Book;
 }
 
 export interface AuthorOverview {
   authorName: string;
   totalOwned: number;
+  totalKnown: number;
   books: Book[];
+  allBooks: AuthorBookItem[];
 }
 
 interface LibraryContextType {
@@ -123,10 +142,24 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       const maxVol = volumes.length ? Math.max(...volumes) : 0;
       const missingVolumes: number[] = [];
+      const allVolumes: SeriesVolumeItem[] = [];
 
       for (let i = 1; i <= maxVol; i++) {
-        if (!volumes.includes(i)) {
+        const ownedBook = sortedBooks.find((b) => b.seriesVolumeNumber === i);
+        if (ownedBook) {
+          allVolumes.push({
+            volumeNumber: i,
+            isOwned: true,
+            title: ownedBook.title,
+            book: ownedBook,
+          });
+        } else {
           missingVolumes.push(i);
+          allVolumes.push({
+            volumeNumber: i,
+            isOwned: false,
+            title: `Vol #${i}`,
+          });
         }
       }
 
@@ -137,6 +170,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         maxVolumeOwned: maxVol,
         books: sortedBooks,
         missingVolumes,
+        allVolumes,
       });
     });
 
@@ -165,16 +199,49 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const result: AuthorOverview[] = [];
     authorMap.forEach((booksForAuthor, authorName) => {
-      const sortedBooks = [...booksForAuthor].sort((a, b) => a.title.localeCompare(b.title));
+      const sortedOwned = [...booksForAuthor].sort((a, b) => a.title.localeCompare(b.title));
+      const allBooks: AuthorBookItem[] = [];
+
+      // Add all owned books
+      sortedOwned.forEach((book) => {
+        allBooks.push({
+          id: book.id || `owned-${book.title}`,
+          title: book.title,
+          isOwned: true,
+          seriesName: book.seriesName || undefined,
+          seriesVolumeNumber: book.seriesVolumeNumber || undefined,
+          book,
+        });
+      });
+
+      // Find series associated with this author's books and add missing series volumes
+      const authorSeriesIds = new Set(booksForAuthor.map((b) => b.seriesId).filter(Boolean));
+      authorSeriesIds.forEach((seriesId) => {
+        const seriesData = seriesOverviews.find((s) => s.seriesId === seriesId);
+        if (seriesData && seriesData.missingVolumes.length > 0) {
+          seriesData.missingVolumes.forEach((missingVol) => {
+            allBooks.push({
+              id: `missing-${seriesId}-vol-${missingVol}`,
+              title: `Vol #${missingVol}`,
+              isOwned: false,
+              seriesName: seriesData.seriesName,
+              seriesVolumeNumber: missingVol,
+            });
+          });
+        }
+      });
+
       result.push({
         authorName,
-        totalOwned: sortedBooks.length,
-        books: sortedBooks,
+        totalOwned: sortedOwned.length,
+        totalKnown: allBooks.length,
+        books: sortedOwned,
+        allBooks,
       });
     });
 
     return result.sort((a, b) => b.totalOwned - a.totalOwned);
-  }, [userBooks]);
+  }, [userBooks, seriesOverviews]);
 
   const addBook = async (input: Omit<CreateBookInput, 'ownerId'>) => {
     const ownerId = user?.uid || 'dev-user-12345';

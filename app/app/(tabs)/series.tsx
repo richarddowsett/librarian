@@ -201,71 +201,91 @@ export default function SeriesTrackerScreen() {
                     </View>
                   )}
 
-                  {/* Owned Volumes Carousel */}
+                  {/* Volumes Carousel (Owned + Missing Greyed Out) */}
                   <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 10 }}>
-                    Owned Volumes in Series:
+                    Series Volumes Sequence:
                   </Text>
 
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                     <View style={{ flexDirection: 'row', gap: 12 }}>
-                      {overview.books.map((book) => (
-                        <View
-                          key={book.id}
-                          style={{
-                            width: 100,
-                            backgroundColor: '#0f172a',
-                            borderRadius: 12,
-                            padding: 8,
-                            borderWidth: 1,
-                            borderColor: '#334155',
-                            alignItems: 'center',
-                          }}
-                        >
+                      {overview.allVolumes.map((volItem) => {
+                        const isOwned = volItem.isOwned;
+                        const book = volItem.book;
+
+                        return (
                           <View
+                            key={`vol-${volItem.volumeNumber}`}
                             style={{
-                              width: 84,
-                              height: 120,
-                              borderRadius: 8,
-                              backgroundColor: '#1e293b',
-                              overflow: 'hidden',
-                              marginBottom: 8,
+                              width: 105,
+                              backgroundColor: '#0f172a',
+                              borderRadius: 12,
+                              padding: 8,
+                              borderWidth: 1,
+                              borderColor: isOwned ? '#334155' : '#f59e0b',
+                              borderStyle: isOwned ? 'solid' : 'dashed',
+                              opacity: isOwned ? 1.0 : 0.5,
                               alignItems: 'center',
-                              justifyContent: 'center',
                             }}
                           >
-                            {book.coverUrl ? (
-                              <Image
-                                source={{ uri: book.coverUrl }}
-                                style={{ width: '100%', height: '100%', resizeMode: 'cover' }}
-                              />
-                            ) : (
-                              <Ionicons name="book" size={28} color="#64748b" />
-                            )}
+                            <View
+                              style={{
+                                width: 88,
+                                height: 120,
+                                borderRadius: 8,
+                                backgroundColor: isOwned ? '#1e293b' : 'rgba(245, 158, 11, 0.08)',
+                                overflow: 'hidden',
+                                marginBottom: 8,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              {isOwned && book?.coverUrl ? (
+                                <Image
+                                  source={{ uri: book.coverUrl }}
+                                  style={{ width: '100%', height: '100%', resizeMode: 'cover' }}
+                                />
+                              ) : isOwned ? (
+                                <Ionicons name="book" size={28} color="#38bdf8" />
+                              ) : (
+                                <Ionicons name="help-outline" size={28} color="#fbbf24" />
+                              )}
+                            </View>
+
+                            <View
+                              style={{
+                                backgroundColor: isOwned ? 'rgba(56, 189, 248, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                                paddingHorizontal: 6,
+                                paddingVertical: 2,
+                                borderRadius: 6,
+                                marginBottom: 4,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: isOwned ? '#38bdf8' : '#fbbf24',
+                                  fontSize: 10,
+                                  fontWeight: '800',
+                                  textAlign: 'center',
+                                }}
+                              >
+                                {isOwned ? `Vol #${volItem.volumeNumber}` : 'Missing'}
+                              </Text>
+                            </View>
+
+                            <Text
+                              style={{
+                                color: isOwned ? '#f8fafc' : '#94a3b8',
+                                fontSize: 11,
+                                fontWeight: '600',
+                                textAlign: 'center',
+                              }}
+                              numberOfLines={2}
+                            >
+                              {isOwned && book ? book.title : `Vol #${volItem.volumeNumber}`}
+                            </Text>
                           </View>
-                          <Text
-                            style={{
-                              color: '#38bdf8',
-                              fontSize: 11,
-                              fontWeight: '800',
-                              textAlign: 'center',
-                            }}
-                          >
-                            Vol #{book.seriesVolumeNumber || '?'}
-                          </Text>
-                          <Text
-                            style={{
-                              color: '#f8fafc',
-                              fontSize: 11,
-                              fontWeight: '600',
-                              textAlign: 'center',
-                              marginTop: 2,
-                            }}
-                            numberOfLines={2}
-                          >
-                            {book.title}
-                          </Text>
-                        </View>
-                      ))}
+                        );
+                      })}
                     </View>
                   </ScrollView>
                 </View>
@@ -365,42 +385,51 @@ export default function SeriesTrackerScreen() {
                     }}
                   >
                     <Text style={{ color: '#38bdf8', fontSize: 12, fontWeight: '800' }}>
-                      {authorData.totalOwned} {authorData.totalOwned === 1 ? 'Book' : 'Books'} Owned
+                      {authorData.totalOwned} of {authorData.totalKnown || authorData.totalOwned} Books Owned
                     </Text>
                   </View>
                 </View>
 
-                {/* Owned Books Carousel */}
+                {/* Author Books Carousel (Owned + Missing Greyed Out) */}
                 <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 10 }}>
-                  Collected Books in Library:
+                  Collected & Known Books:
                 </Text>
 
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   <View style={{ flexDirection: 'row', gap: 12 }}>
-                    {authorData.books.map((book) => {
+                    {authorData.allBooks.map((item) => {
+                      const isOwned = item.isOwned;
+                      const book = item.book;
                       const statusColor =
-                        book.readStatus === 'read'
-                          ? '#34d399'
-                          : book.readStatus === 'reading'
-                          ? '#fbbf24'
-                          : '#94a3b8';
+                        isOwned && book
+                          ? book.readStatus === 'read'
+                            ? '#34d399'
+                            : book.readStatus === 'reading'
+                            ? '#fbbf24'
+                            : '#94a3b8'
+                          : '#f59e0b';
+
                       const statusLabel =
-                        book.readStatus === 'read'
-                          ? 'Read'
-                          : book.readStatus === 'reading'
-                          ? 'Reading'
-                          : 'Unread';
+                        isOwned && book
+                          ? book.readStatus === 'read'
+                            ? 'Read'
+                            : book.readStatus === 'reading'
+                            ? 'Reading'
+                            : 'Unread'
+                          : 'Missing';
 
                       return (
                         <View
-                          key={book.id}
+                          key={item.id}
                           style={{
                             width: 110,
                             backgroundColor: '#0f172a',
                             borderRadius: 12,
                             padding: 8,
                             borderWidth: 1,
-                            borderColor: '#334155',
+                            borderColor: isOwned ? '#334155' : '#f59e0b',
+                            borderStyle: isOwned ? 'solid' : 'dashed',
+                            opacity: isOwned ? 1.0 : 0.5,
                             alignItems: 'center',
                           }}
                         >
@@ -409,20 +438,22 @@ export default function SeriesTrackerScreen() {
                               width: 94,
                               height: 130,
                               borderRadius: 8,
-                              backgroundColor: '#1e293b',
+                              backgroundColor: isOwned ? '#1e293b' : 'rgba(245, 158, 11, 0.08)',
                               overflow: 'hidden',
                               marginBottom: 8,
                               alignItems: 'center',
                               justifyContent: 'center',
                             }}
                           >
-                            {book.coverUrl ? (
+                            {isOwned && book?.coverUrl ? (
                               <Image
                                 source={{ uri: book.coverUrl }}
                                 style={{ width: '100%', height: '100%', resizeMode: 'cover' }}
                               />
-                            ) : (
+                            ) : isOwned ? (
                               <Ionicons name="book" size={32} color="#64748b" />
+                            ) : (
+                              <Ionicons name="help-outline" size={32} color="#fbbf24" />
                             )}
                           </View>
                           <View
@@ -448,16 +479,16 @@ export default function SeriesTrackerScreen() {
                           </View>
                           <Text
                             style={{
-                              color: '#f8fafc',
+                              color: isOwned ? '#f8fafc' : '#94a3b8',
                               fontSize: 11,
                               fontWeight: '600',
                               textAlign: 'center',
                             }}
                             numberOfLines={2}
                           >
-                            {book.title}
+                            {item.title}
                           </Text>
-                          {book.seriesName ? (
+                          {item.seriesName ? (
                             <Text
                               style={{
                                 color: '#94a3b8',
@@ -467,7 +498,7 @@ export default function SeriesTrackerScreen() {
                               }}
                               numberOfLines={1}
                             >
-                              {book.seriesName}
+                              {item.seriesName}
                             </Text>
                           ) : null}
                         </View>
