@@ -1,15 +1,15 @@
 # 📚 Librarian Application
 
-A comprehensive book library and series management application supporting barcode scanning, manual entry, series tracking, deduplicated catalog management, and cloud syncing.
+A comprehensive book library and series management application supporting barcode scanning, manual entry, series tracking, and cloud catalog management.
 
 ---
 
 ## 🏗️ Architecture & Project Structure
 
-- **`app/`**: Expo / React Native mobile & web client application with NativeWind styling and navigation.
-- **`backend/`**: Node.js microservices, Google Books API proxy, PostgreSQL connection pooling, and Flyway SQL migrations (`backend/migrations`).
-- **`terraform/`**: HashiCorp Terraform configurations for AWS Cognito, Amazon Aurora Serverless v2 PostgreSQL, Secrets Manager, IAM security policies, and CloudFront hosting.
-- **`docs-site/`**: Application documentation, architecture guides, and user manuals.
+- **`app/`**: Expo / React Native mobile client application with NativeWind styling and navigation.
+- **`backend/`**: Node.js backend services and Open Library API integrations.
+- **`terraform/`**: HashiCorp Terraform configurations for AWS Cognito, DynamoDB, IAM FGAC rules, and WAF protection.
+- **`docs-site/`**: Application documentation and user guides.
 
 ---
 
@@ -18,8 +18,7 @@ A comprehensive book library and series management application supporting barcod
 ### Prerequisites:
 - AWS CLI configured (`aws configure`)
 - Terraform (`>= 1.5.0`)
-- Node.js (`>= 20.0.0`)
-- Flyway CLI (`>= 10.0.0`) for database schema migrations
+- Node.js (`>= 18.0.0`)
 
 ### 1. Initialize & Provision AWS Infrastructure:
 ```bash
@@ -29,11 +28,8 @@ terraform plan
 terraform apply
 ```
 
-### 2. Configure Environment Variables & Flyway Database Migration:
-Copy `.env.example` to `.env` and set your desired database credentials. Run Flyway migration:
-```bash
-flyway -url="jdbc:postgresql://<AURORA_ENDPOINT>:5432/librarian" -user="librarian_admin" -password="<PASSWORD>" -locations="filesystem:backend/migrations" migrate
-```
+### 2. Configure Environment Variables:
+Copy [terraform/terraform.tfvars.example](file:///Users/richarddowsett/development/librarian/terraform/terraform.tfvars.example) to `terraform/terraform.tfvars` and set your desired values. After running `terraform apply`, copy the outputs to your `.env` file.
 
 ---
 

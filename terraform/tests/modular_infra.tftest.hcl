@@ -15,8 +15,13 @@ run "verify_modular_infrastructure_resources" {
 
   # Database module assertion
   assert {
-    condition     = aws_rds_cluster.aurora_postgres.cluster_identifier == "librarian-dev-aurora-cluster"
-    error_message = "Aurora PostgreSQL cluster identifier should match expected naming convention"
+    condition     = aws_dynamodb_table.books.name == "librarian-dev-books"
+    error_message = "Books DynamoDB table name should match expected naming convention"
+  }
+
+  assert {
+    condition     = aws_dynamodb_table.series.name == "librarian-dev-series"
+    error_message = "Series DynamoDB table name should match expected naming convention"
   }
 
   # Storage/WAF assertion

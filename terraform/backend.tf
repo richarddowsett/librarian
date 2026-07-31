@@ -75,9 +75,34 @@ resource "aws_iam_role_policy_attachment" "books_lambda_basic" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-resource "aws_iam_role_policy_attachment" "books_lambda_secrets" {
+resource "aws_iam_policy" "books_table_policy" {
+  name        = "${local.name_prefix}-books-table-policy"
+  description = "Scoped DynamoDB permissions for Books Lambda to access books table ONLY"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Query"
+        ]
+        Resource = [
+          aws_dynamodb_table.books.arn,
+          "${aws_dynamodb_table.books.arn}/index/*"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "books_lambda_db" {
   role       = aws_iam_role.books_lambda_role.name
-  policy_arn = aws_iam_policy.google_books_secrets_policy.arn
+  policy_arn = aws_iam_policy.books_table_policy.arn
 }
 
 resource "aws_lambda_function" "books" {
@@ -87,14 +112,11 @@ resource "aws_lambda_function" "books" {
   role             = aws_iam_role.books_lambda_role.arn
   handler          = "books.handler"
   runtime          = "nodejs20.x"
-  timeout          = 15
+  timeout          = 10
 
   environment {
     variables = {
-      PGHOST = aws_rds_cluster.aurora_postgres.endpoint
-      PGPORT = tostring(aws_rds_cluster.aurora_postgres.port)
-      PGDATABASE = aws_rds_cluster.aurora_postgres.database_name
-      PGUSER = aws_rds_cluster.aurora_postgres.master_username
+      BOOKS_TABLE_NAME = aws_dynamodb_table.books.name
     }
   }
 }
@@ -110,6 +132,34 @@ resource "aws_iam_role_policy_attachment" "series_lambda_basic" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
+resource "aws_iam_policy" "series_table_policy" {
+  name        = "${local.name_prefix}-series-table-policy"
+  description = "Scoped DynamoDB permissions for Series Lambda to access series table ONLY"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:Scan"
+        ]
+        Resource = [
+          aws_dynamodb_table.series.arn
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "series_lambda_db" {
+  role       = aws_iam_role.series_lambda_role.name
+  policy_arn = aws_iam_policy.series_table_policy.arn
+}
+
 resource "aws_lambda_function" "series" {
   filename         = data.archive_file.series_lambda.output_path
   source_code_hash = data.archive_file.series_lambda.output_base64sha256
@@ -117,7 +167,13 @@ resource "aws_lambda_function" "series" {
   role             = aws_iam_role.series_lambda_role.arn
   handler          = "series.handler"
   runtime          = "nodejs20.x"
-  timeout          = 15
+  timeout          = 10
+
+  environment {
+    variables = {
+      SERIES_TABLE_NAME = aws_dynamodb_table.series.name
+    }
+  }
 }
 
 # --- 3. User Series Status Database Lambda & IAM Role ---
@@ -131,9 +187,32 @@ resource "aws_iam_role_policy_attachment" "user_series_status_lambda_basic" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-resource "aws_iam_role_policy_attachment" "user_series_status_lambda_secrets" {
+resource "aws_iam_policy" "user_series_status_table_policy" {
+  name        = "${local.name_prefix}-user-series-status-table-policy"
+  description = "Scoped DynamoDB permissions for UserSeriesStatus Lambda to access user_series_status table ONLY"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:Query"
+        ]
+        Resource = [
+          aws_dynamodb_table.user_series_status.arn
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "user_series_status_lambda_db" {
   role       = aws_iam_role.user_series_status_lambda_role.name
-  policy_arn = aws_iam_policy.google_books_secrets_policy.arn
+  policy_arn = aws_iam_policy.user_series_status_table_policy.arn
 }
 
 resource "aws_lambda_function" "user_series_status" {
@@ -143,14 +222,11 @@ resource "aws_lambda_function" "user_series_status" {
   role             = aws_iam_role.user_series_status_lambda_role.arn
   handler          = "userSeriesStatus.handler"
   runtime          = "nodejs20.x"
-  timeout          = 15
+  timeout          = 10
 
   environment {
     variables = {
-      PGHOST = aws_rds_cluster.aurora_postgres.endpoint
-      PGPORT = tostring(aws_rds_cluster.aurora_postgres.port)
-      PGDATABASE = aws_rds_cluster.aurora_postgres.database_name
-      PGUSER = aws_rds_cluster.aurora_postgres.master_username
+      USER_SERIES_STATUS_TABLE_NAME = aws_dynamodb_table.user_series_status.name
     }
   }
 }

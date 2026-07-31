@@ -23,12 +23,12 @@ run "verify_default_configuration_and_outputs" {
   }
 
   assert {
-    condition     = aws_rds_cluster.aurora_postgres.database_name == "librarian"
-    error_message = "Aurora PostgreSQL database name should be librarian"
+    condition     = aws_dynamodb_table.books.billing_mode == "PAY_PER_REQUEST"
+    error_message = "DynamoDB Books table should use PAY_PER_REQUEST billing mode for cost efficiency"
   }
 
   assert {
-    condition     = aws_budgets_budget.monthly_limit.limit_amount == "13"
-    error_message = "Budget limit resource should reflect configured budget amount"
+    condition     = output.budget_limit == "13 USD"
+    error_message = "Budget limit output should reflect configured budget amount"
   }
 }

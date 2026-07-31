@@ -31,4 +31,4 @@ sidebar_position: 3
 * **Serverless Backend Execution:** Series analysis requests are executed via authenticated API Gateway Lambda functions with Cognito JWT validation.
 * **Cost & Latency Optimization:** Deterministic parsing on Google Books API metadata runs first. LLM inference (e.g. Gemini via Firebase AI Logic or AWS Bedrock) is invoked only when series metadata is incomplete or ambiguous.
 * **Structured Output Enforcement:** LLM outputs strictly follow JSON Schema definitions to prevent parsing errors and guard against prompt injection.
-* **Data Isolation:** User series status and completion metrics are scoped strictly by `user_id` (Cognito `sub`) in the Amazon Aurora Serverless v2 PostgreSQL `user_series_status` table.
+* **Data Isolation:** User series status and completion metrics are scoped strictly by `ownerId` (Cognito `sub`) in DynamoDB.
