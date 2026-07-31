@@ -25,6 +25,8 @@ export const DoIOwnModal: React.FC<DoIOwnModalProps> = ({ visible, onClose }) =>
   const [addedBookId, setAddedBookId] = useState<string | null>(null);
   const [isCameraScanning, setIsCameraScanning] = useState<boolean>(false);
   const [permission, requestPermission] = useCameraPermissions();
+  const [webCamError, setWebCamError] = useState<string | null>(null);
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
@@ -32,8 +34,68 @@ export const DoIOwnModal: React.FC<DoIOwnModalProps> = ({ visible, onClose }) =>
       setQuery('');
       setAddedBookId(null);
       setIsCameraScanning(false);
+      setWebCamError(null);
     }
   }, [visible]);
+
+  // Web Webcam & BarcodeDetector lifecycle
+  useEffect(() => {
+    let stream: MediaStream | null = null;
+    let scanInterval: any = null;
+
+    if (Platform.OS === 'web' && isCameraScanning) {
+      (async () => {
+        try {
+          if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+            });
+            if (videoRef.current) {
+              videoRef.current.srcObject = stream;
+              await videoRef.current.play().catch(() => {});
+              setWebCamError(null);
+            }
+          }
+        } catch (err: any) {
+          console.warn('Webcam stream access error:', err);
+          setWebCamError('Webcam access was denied or not available. Please allow camera permissions in your browser.');
+        }
+      })();
+
+      if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+        try {
+          const barcodeDetector = new (window as any).BarcodeDetector({
+            formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'qr_code'],
+          });
+
+          scanInterval = setInterval(async () => {
+            if (videoRef.current && videoRef.current.readyState === 4 && isCameraScanning) {
+              try {
+                const barcodes = await barcodeDetector.detect(videoRef.current);
+                if (barcodes && barcodes.length > 0) {
+                  const detectedIsbn = barcodes[0].rawValue;
+                  if (detectedIsbn) {
+                    handleBarcodeScanned(detectedIsbn);
+                  }
+                }
+              } catch (e) {
+                // Ignore frame detection error
+              }
+            }
+          }, 400);
+        } catch (e) {
+          console.warn('BarcodeDetector error:', e);
+        }
+      }
+    }
+
+    return () => {
+      if (scanInterval) clearInterval(scanInterval);
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, [isCameraScanning, Platform.OS]);
 
   if (!visible) return null;
 
@@ -68,9 +130,11 @@ export const DoIOwnModal: React.FC<DoIOwnModalProps> = ({ visible, onClose }) =>
   };
 
   const startCameraScan = async () => {
-    if (Platform.OS !== 'web' && (!permission || !permission.granted)) {
-      const res = await requestPermission();
-      if (!res.granted) return;
+    if (Platform.OS !== 'web') {
+      if (!permission || !permission.granted) {
+        const res = await requestPermission();
+        if (!res.granted) return;
+      }
     }
     setIsCameraScanning(true);
   };
@@ -180,11 +244,11 @@ export const DoIOwnModal: React.FC<DoIOwnModalProps> = ({ visible, onClose }) =>
           </View>
 
           <ScrollView style={{ padding: 20 }}>
-            {/* Live Camera Scanner Box inside Modal */}
+            {/* Live Camera Scanner Container */}
             {isCameraScanning ? (
               <View
                 style={{
-                  height: 220,
+                  height: 240,
                   backgroundColor: '#0f172a',
                   borderRadius: 16,
                   overflow: 'hidden',
@@ -193,6 +257,7 @@ export const DoIOwnModal: React.FC<DoIOwnModalProps> = ({ visible, onClose }) =>
                   marginBottom: 20,
                   alignItems: 'center',
                   justifyContent: 'center',
+                  position: 'relative',
                 }}
               >
                 {Platform.OS !== 'web' ? (
@@ -223,19 +288,54 @@ export const DoIOwnModal: React.FC<DoIOwnModalProps> = ({ visible, onClose }) =>
                         <View style={{ width: '80%', height: 2, backgroundColor: '#ef4444' }} />
                       </View>
                       <Text style={{ color: '#ffffff', fontSize: 12, marginTop: 8, fontWeight: '600' }}>
-                        Point camera at book barcode
+                        Position book barcode inside the target box
                       </Text>
                     </View>
                   </CameraView>
                 ) : (
-                  <View style={{ padding: 20, alignItems: 'center' }}>
-                    <Ionicons name="barcode-outline" size={48} color="#38bdf8" />
-                    <Text style={{ color: '#f8fafc', fontSize: 14, fontWeight: '700', marginTop: 8 }}>
-                      Webcam Scanner Ready
-                    </Text>
-                    <Text style={{ color: '#94a3b8', fontSize: 12, textAlign: 'center', marginTop: 4 }}>
-                      Hold book barcode up to camera or type ISBN manually below.
-                    </Text>
+                  <View style={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                    <View
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: 'rgba(0,0,0,0.25)',
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 220,
+                          height: 120,
+                          borderWidth: 2,
+                          borderColor: '#38bdf8',
+                          borderRadius: 12,
+                          backgroundColor: 'rgba(56, 189, 248, 0.08)',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <View style={{ width: '80%', height: 2, backgroundColor: '#ef4444' }} />
+                      </View>
+                      <Text style={{ color: '#ffffff', fontSize: 12, marginTop: 8, fontWeight: '600' }}>
+                        Hold book barcode up to your camera
+                      </Text>
+                      {webCamError && (
+                        <Text style={{ color: '#fca5a5', fontSize: 11, marginTop: 4, textAlign: 'center', paddingHorizontal: 16 }}>
+                          {webCamError}
+                        </Text>
+                      )}
+                    </View>
                   </View>
                 )}
 
@@ -245,13 +345,16 @@ export const DoIOwnModal: React.FC<DoIOwnModalProps> = ({ visible, onClose }) =>
                     position: 'absolute',
                     top: 10,
                     right: 10,
-                    backgroundColor: 'rgba(15, 23, 42, 0.8)',
+                    backgroundColor: 'rgba(15, 23, 42, 0.85)',
                     paddingHorizontal: 12,
                     paddingVertical: 6,
                     borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: '#475569',
+                    zIndex: 10,
                   }}
                 >
-                  <Text style={{ color: '#f8fafc', fontSize: 12, fontWeight: '700' }}>Cancel Camera</Text>
+                  <Text style={{ color: '#f8fafc', fontSize: 12, fontWeight: '700' }}>Close Camera</Text>
                 </TouchableOpacity>
               </View>
             ) : null}
@@ -291,7 +394,7 @@ export const DoIOwnModal: React.FC<DoIOwnModalProps> = ({ visible, onClose }) =>
               <TouchableOpacity
                 onPress={startCameraScan}
                 style={{
-                  backgroundColor: '#0284c7',
+                  backgroundColor: isCameraScanning ? '#0284c7' : '#0284c7',
                   borderRadius: 16,
                   paddingHorizontal: 14,
                   alignItems: 'center',
@@ -300,9 +403,9 @@ export const DoIOwnModal: React.FC<DoIOwnModalProps> = ({ visible, onClose }) =>
                   gap: 6,
                 }}
               >
-                <Ionicons name="barcode-outline" size={22} color="#ffffff" />
+                <Ionicons name="camera" size={22} color="#ffffff" />
                 <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 13 }}>
-                  Scan Barcode
+                  {isCameraScanning ? 'Scanning...' : 'Scan Barcode'}
                 </Text>
               </TouchableOpacity>
             </View>
