@@ -46,15 +46,28 @@ jobs:
       - name: Build TypeScript Output & Bundles
         run: npm run build
 
+      - name: Setup Flyway CLI
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: red-gate/setup-flyway@v1
+        with:
+          version: 'latest'
+          edition: 'community'
+          i-agree-to-the-eula: true
+
       - name: Run Flyway PostgreSQL Database Migrations
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        uses: flyway/flyway-action@v10
-        with:
-          url: "jdbc:postgresql://${{ secrets.DB_HOST }}:${{ secrets.DB_PORT || '5432' }}/${{ secrets.DB_NAME || 'librarian' }}"
-          user: '${{ secrets.DB_USER }}'
-          password: '${{ secrets.DB_PASSWORD }}'
-          locations: 'filesystem:backend/migrations'
-          command: 'migrate'
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT || '5432' }}
+          DB_NAME: ${{ secrets.DB_NAME || 'librarian' }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        run: |
+          flyway migrate \
+            -url="jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}" \
+            -user="${DB_USER}" \
+            -password="${DB_PASSWORD}" \
+            -locations="filesystem:migrations"
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
