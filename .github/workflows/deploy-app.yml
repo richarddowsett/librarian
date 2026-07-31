@@ -60,13 +60,33 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION || 'eu-central-1' }}
 
-      - name: Sync Dist to S3 & Invalidate CloudFront Cache
+      - name: Sync Web Bundle to S3 Bucket
         if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         run: |
           aws s3 sync dist s3://librarian-dev-frontend-bucket --delete
-          DIST_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?Comment=='CloudFront Distribution for Librarian Frontend SPA'].Id | [0]" --output text)
-          if [ "$DIST_ID" != "None" ] && [ -n "$DIST_ID" ]; then
-            aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*"
+
+      - name: Clear CloudFront CDN Cache
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        env:
+          DISTRIBUTION_ID_SECRET: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
+        run: |
+          DIST_ID="$DISTRIBUTION_ID_SECRET"
+          if [ -z "$DIST_ID" ] || [ "$DIST_ID" == "None" ] || [ "$DIST_ID" == "null" ]; then
+            echo "Searching for CloudFront Distribution ID by comment..."
+            DIST_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?Comment=='CloudFront Distribution for Librarian Frontend SPA'].Id | [0]" --output text)
+          fi
+
+          if [ -z "$DIST_ID" ] || [ "$DIST_ID" == "None" ] || [ "$DIST_ID" == "null" ]; then
+            echo "Searching for CloudFront Distribution ID by S3 bucket origin..."
+            DIST_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?Origins.Items[?contains(DomainName, 'librarian-dev-frontend-bucket')]].Id | [0]" --output text)
+          fi
+
+          if [ -n "$DIST_ID" ] && [ "$DIST_ID" != "None" ] && [ "$DIST_ID" != "null" ]; then
+            echo "Invalidating CloudFront CDN Cache for Distribution ID: $DIST_ID..."
+            INVALIDATION_ID=$(aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*" --query "Invalidation.Id" --output text)
+            echo "Successfully submitted CloudFront cache invalidation request: $INVALIDATION_ID for distribution $DIST_ID"
+          else
+            echo "::warning::CloudFront Distribution ID could not be found. Skipping cache invalidation."
           fi
 
       - name: Check Expo Token Presence
