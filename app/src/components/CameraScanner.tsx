@@ -27,6 +27,9 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
   const [manualIsbn, setManualIsbn] = useState<string>('');
   const [isSearching, setIsSearching] = useState<boolean>(false);
 
+  // Scan Success Visual & Audio Feedback State
+  const [scanSuccess, setScanSuccess] = useState<boolean>(false);
+
   // Staged Queue for Multi-Book Bulk Scanning
   const [stagedBooks, setStagedBooks] = useState<OpenLibraryBookResult[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -116,6 +119,42 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
     };
   }, [isScanning, Platform.OS]);
 
+  const playBarcodeBeep = () => {
+    try {
+      if (typeof window !== 'undefined') {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContextClass) {
+          const audioCtx = new AudioContextClass();
+          const oscillator = audioCtx.createOscillator();
+          const gainNode = audioCtx.createGain();
+
+          // High frequency sine beep characteristic of supermarket checkout scanners (1760 Hz)
+          oscillator.type = 'sine';
+          oscillator.frequency.setValueAtTime(1760, audioCtx.currentTime);
+
+          gainNode.gain.setValueAtTime(0.35, audioCtx.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.12);
+
+          oscillator.connect(gainNode);
+          gainNode.connect(audioCtx.destination);
+
+          oscillator.start(audioCtx.currentTime);
+          oscillator.stop(audioCtx.currentTime + 0.12);
+        }
+      }
+    } catch (e) {
+      console.warn('Scan beep audio playback failed:', e);
+    }
+  };
+
+  const triggerScanSuccessVisualAndSound = () => {
+    setScanSuccess(true);
+    playBarcodeBeep();
+    setTimeout(() => {
+      setScanSuccess(false);
+    }, 1200);
+  };
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {
@@ -187,6 +226,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
           if (prev.some((b) => cleanIsbnHelper(b.isbn) === cleanIsbnHelper(bookData.isbn))) return prev;
           return [bookData, ...prev];
         });
+        triggerScanSuccessVisualAndSound();
         showToast(`Added "${bookData.title}" to Queue!`);
         setManualIsbn('');
       } else {
@@ -285,8 +325,8 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
             backgroundColor: '#0f172a',
             borderRadius: 20,
             overflow: 'hidden',
-            borderWidth: 2,
-            borderColor: isScanning ? '#0284c7' : '#334155',
+            borderWidth: scanSuccess ? 4 : 2,
+            borderColor: scanSuccess ? '#22c55e' : isScanning ? '#0284c7' : '#334155',
             justifyContent: 'center',
             alignItems: 'center',
             position: 'relative',
@@ -307,25 +347,34 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
                   flex: 1,
                   alignItems: 'center',
                   justifyContent: 'center',
-                  backgroundColor: 'rgba(0,0,0,0.3)',
+                  backgroundColor: scanSuccess ? 'rgba(34, 197, 94, 0.15)' : 'rgba(0,0,0,0.3)',
                 }}
               >
                 <View
                   style={{
                     width: 260,
                     height: 150,
-                    borderWidth: 2,
-                    borderColor: '#38bdf8',
+                    borderWidth: scanSuccess ? 3 : 2,
+                    borderColor: scanSuccess ? '#22c55e' : '#38bdf8',
                     borderRadius: 16,
-                    backgroundColor: 'rgba(56, 189, 248, 0.08)',
+                    backgroundColor: scanSuccess ? 'rgba(34, 197, 94, 0.25)' : 'rgba(56, 189, 248, 0.08)',
                     justifyContent: 'center',
                     alignItems: 'center',
                   }}
                 >
-                  <View style={{ width: '80%', height: 2, backgroundColor: '#ef4444' }} />
+                  {scanSuccess ? (
+                    <View style={{ alignItems: 'center', gap: 4 }}>
+                      <Ionicons name="checkmark-circle" size={48} color="#22c55e" />
+                      <Text style={{ color: '#22c55e', fontSize: 15, fontWeight: '800' }}>
+                        Scanned Successfully!
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={{ width: '80%', height: 2, backgroundColor: '#ef4444' }} />
+                  )}
                 </View>
-                <Text style={{ color: '#ffffff', fontSize: 12, marginTop: 10, fontWeight: '600' }}>
-                  Position barcode inside the target box
+                <Text style={{ color: scanSuccess ? '#22c55e' : '#ffffff', fontSize: 13, marginTop: 10, fontWeight: '700' }}>
+                  {scanSuccess ? '✓ Barcode Recognized!' : 'Position barcode inside the target box'}
                 </Text>
               </View>
             </CameraView>
@@ -374,25 +423,34 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
                     bottom: 0,
                     alignItems: 'center',
                     justifyContent: 'center',
-                    backgroundColor: 'rgba(0,0,0,0.2)',
+                    backgroundColor: scanSuccess ? 'rgba(34, 197, 94, 0.15)' : 'rgba(0,0,0,0.2)',
                   }}
                 >
                   <View
                     style={{
                       width: 260,
                       height: 150,
-                      borderWidth: 2,
-                      borderColor: '#38bdf8',
+                      borderWidth: scanSuccess ? 3 : 2,
+                      borderColor: scanSuccess ? '#22c55e' : '#38bdf8',
                       borderRadius: 16,
-                      backgroundColor: 'rgba(56, 189, 248, 0.08)',
+                      backgroundColor: scanSuccess ? 'rgba(34, 197, 94, 0.25)' : 'rgba(56, 189, 248, 0.08)',
                       justifyContent: 'center',
                       alignItems: 'center',
                     }}
                   >
-                    <View style={{ width: '80%', height: 2, backgroundColor: '#ef4444' }} />
+                    {scanSuccess ? (
+                      <View style={{ alignItems: 'center', gap: 4 }}>
+                        <Ionicons name="checkmark-circle" size={48} color="#22c55e" />
+                        <Text style={{ color: '#22c55e', fontSize: 15, fontWeight: '800' }}>
+                          Scanned Successfully!
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={{ width: '80%', height: 2, backgroundColor: '#ef4444' }} />
+                    )}
                   </View>
-                  <Text style={{ color: '#ffffff', fontSize: 12, marginTop: 10, fontWeight: '600' }}>
-                    Hold book barcode up to webcam
+                  <Text style={{ color: scanSuccess ? '#22c55e' : '#ffffff', fontSize: 13, marginTop: 10, fontWeight: '700' }}>
+                    {scanSuccess ? '✓ Barcode Recognized!' : 'Hold book barcode up to webcam'}
                   </Text>
                 </View>
               )}
