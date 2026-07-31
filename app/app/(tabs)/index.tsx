@@ -11,6 +11,7 @@ import { useLibrary } from '../../src/context/LibraryContext';
 import { BookCard } from '../../src/components/BookCard';
 import { BookDetailModal } from '../../src/components/BookDetailModal';
 import { BookFormModal } from '../../src/components/BookFormModal';
+import { DoIOwnModal } from '../../src/components/DoIOwnModal';
 import { Book } from '../../src/schemas/book';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -28,6 +29,7 @@ export default function LibraryCatalogScreen() {
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState<boolean>(false);
   const [isFormModalOpen, setIsFormModalOpen] = useState<boolean>(false);
+  const [isDoIOwnModalOpen, setIsDoIOwnModalOpen] = useState<boolean>(false);
   const [editBookData, setEditBookData] = useState<Book | null>(null);
 
   // Compute number of grid columns based on width
@@ -63,15 +65,42 @@ export default function LibraryCatalogScreen() {
       {/* Header & Stats Summary */}
       <View
         style={{
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
           marginBottom: 20,
         }}
       >
-        <Text style={{ color: '#f8fafc', fontSize: 26, fontWeight: '800' }}>
-          My Library Catalogue
-        </Text>
-        <Text style={{ color: '#94a3b8', fontSize: 14, marginTop: 2 }}>
-          Manage your physical collection, track reading progress, and log reviews.
-        </Text>
+        <View>
+          <Text style={{ color: '#f8fafc', fontSize: 26, fontWeight: '800' }}>
+            My Library Catalogue
+          </Text>
+          <Text style={{ color: '#94a3b8', fontSize: 14, marginTop: 2 }}>
+            Manage your physical collection, track reading progress, and log reviews.
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          onPress={() => setIsDoIOwnModalOpen(true)}
+          style={{
+            backgroundColor: '#0284c7',
+            paddingHorizontal: 16,
+            paddingVertical: 10,
+            borderRadius: 14,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+            shadowColor: '#0284c7',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+          }}
+        >
+          <Ionicons name="storefront" size={18} color="#ffffff" />
+          <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 14 }}>
+            Do I Own This?
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Quick Stats Badges */}
@@ -288,6 +317,11 @@ export default function LibraryCatalogScreen() {
         visible={isFormModalOpen}
         onClose={() => setIsFormModalOpen(false)}
         initialData={editBookData}
+      />
+
+      <DoIOwnModal
+        visible={isDoIOwnModalOpen}
+        onClose={() => setIsDoIOwnModalOpen(false)}
       />
     </ScrollView>
   );

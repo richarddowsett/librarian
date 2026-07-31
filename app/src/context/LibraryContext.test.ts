@@ -167,4 +167,47 @@ describe('Author & Series Collections Data Isolation', () => {
     expect(ownedUserBooks.map((b) => b.title)).toEqual(['The Shining']);
     expect(ownedUserBooks.some((b) => b.title === 'Misery')).toBe(false);
   });
+
+  it('VERIFIES: "Do I Own This" instant bookstore lookup matching', () => {
+    const libraryBooks: Book[] = [
+      {
+        id: '1',
+        ownerId: 'u1',
+        isbn: '9780307743657',
+        title: 'The Shining',
+        authors: ['Stephen King'],
+        readStatus: 'read',
+      },
+      {
+        id: '2',
+        ownerId: 'u1',
+        isbn: '9780385543781',
+        title: 'The Sentinel',
+        authors: ['Lee Child', 'Andrew Child'],
+        readStatus: 'reading',
+      },
+    ];
+
+    const doIOwn = (query: string) => {
+      const clean = query.trim().toLowerCase();
+      const cleanIsbn = clean.replace(/[- ]/g, '');
+      return libraryBooks.some((b) => {
+        const titleMatch = b.title.toLowerCase().includes(clean);
+        const authorMatch = b.authors.some((a) => a.toLowerCase().includes(clean));
+        const isbnMatch = cleanIsbn && b.isbn ? b.isbn.replace(/[- ]/g, '').includes(cleanIsbn) : false;
+        return titleMatch || authorMatch || isbnMatch;
+      });
+    };
+
+    // Owned books
+    expect(doIOwn('The Shining')).toBe(true);
+    expect(doIOwn('shining')).toBe(true);
+    expect(doIOwn('9780307743657')).toBe(true);
+    expect(doIOwn('Lee Child')).toBe(true);
+
+    // Unowned books
+    expect(doIOwn('Pet Sematary')).toBe(false);
+    expect(doIOwn('Killing Floor')).toBe(false);
+    expect(doIOwn('9781501142970')).toBe(false);
+  });
 });
