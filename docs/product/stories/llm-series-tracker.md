@@ -45,6 +45,7 @@ And the LLM returns a validated JSON payload containing total volume count, miss
 
 ### Frontend (Expo / React Native)
 * Segmented View Switcher ("Book Series" vs "Author Collections") on the Series screen.
+* Toggle switch to Show / Hide Unowned & Missing Books (greyed-out cards).
 * Series Progress Card component with completion progress bar.
 * Author Collection Card component with total books count and horizontal book carousel.
 * Accordion view listing Owned vs Missing books.
