@@ -260,7 +260,7 @@ resource "aws_iam_role" "google_books_lambda_role" {
 
 resource "aws_iam_role_policy_attachment" "google_books_lambda_basic" {
   role       = aws_iam_role.google_books_lambda_role.name
-  policy_arn = "arn:aws:policy/service-role/AWSLambdaBasicExecutionRole"
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
 resource "aws_iam_policy" "google_books_secrets_policy" {
