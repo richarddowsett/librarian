@@ -325,7 +325,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [userBooks, seriesOverviews, authorCatalogsMap]);
 
   const addBook = async (input: Omit<CreateBookInput, 'ownerId'>) => {
-    const ownerId = user?.uid || 'dev-user-12345';
+    const ownerId = user?.uid || '';
 
     // Check for duplicate books by ISBN or exact Title
     const cleanIsbn = (str?: string) => (str || '').replace(/[- ]/g, '').trim();

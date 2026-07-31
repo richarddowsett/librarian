@@ -17,20 +17,10 @@ interface AuthContextType {
   confirmSignUp: (email: string, code: string) => Promise<{ success: boolean; error?: string }>;
   resendCode: (email: string) => Promise<{ success: boolean; error?: string }>;
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  loginWithBypass: (customName?: string) => void;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-const DEV_DEMO_USER: UserProfile = {
-  uid: 'dev-user-12345',
-  email: 'demo-collector@librarian.app',
-  displayName: 'Demo Book Collector',
-  photoURL: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-  isDevBypass: true,
-  createdAt: new Date().toISOString(),
-};
 
 const AUTH_STORAGE_KEY = 'librarian_auth_session_v1';
 
@@ -144,7 +134,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         displayName: session.user.displayName,
         idToken: session.idToken,
         accessToken: session.accessToken,
-        isDevBypass: false,
         createdAt: new Date().toISOString(),
       };
 
@@ -159,16 +148,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       return { success: false, error: err.message || 'Sign in failed' };
     }
-  };
-
-  const loginWithBypass = (customName?: string) => {
-    setIsLoading(true);
-    const demoProfile: UserProfile = {
-      ...DEV_DEMO_USER,
-      displayName: customName || DEV_DEMO_USER.displayName,
-    };
-    saveSession(demoProfile, 'dev-bypass-token-123');
-    setIsLoading(false);
   };
 
   const logout = () => {
@@ -188,7 +167,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         confirmSignUp,
         resendCode,
         signIn,
-        loginWithBypass,
         logout,
       }}
     >

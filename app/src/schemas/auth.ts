@@ -30,7 +30,6 @@ export const userProfileSchema = z.object({
   photoURL: z.string().url().optional(),
   idToken: z.string().optional(),
   accessToken: z.string().optional(),
-  isDevBypass: z.boolean().default(false),
   createdAt: z.string().optional(),
 });
 

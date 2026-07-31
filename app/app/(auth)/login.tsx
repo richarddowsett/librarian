@@ -19,7 +19,6 @@ export default function LoginScreen() {
     signUp,
     confirmSignUp,
     resendCode,
-    loginWithBypass,
     unconfirmedEmail,
     setUnconfirmedEmail,
     isLoading,
@@ -100,11 +99,6 @@ export default function LoginScreen() {
     } else {
       setErrorMessage(res.error || 'Failed to resend verification code.');
     }
-  };
-
-  const handleDevBypass = () => {
-    loginWithBypass();
-    router.replace('/(tabs)');
   };
 
   return (
@@ -538,41 +532,7 @@ export default function LoginScreen() {
           </View>
         )}
 
-        {/* Divider */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 16 }}>
-          <View style={{ flex: 1, height: 1, backgroundColor: '#334155' }} />
-          <Text style={{ color: '#64748b', fontSize: 12, marginHorizontal: 12, fontWeight: '600' }}>
-            LOCAL DEV MODE
-          </Text>
-          <View style={{ flex: 1, height: 1, backgroundColor: '#334155' }} />
-        </View>
-
-        {/* Instant Dev Bypass */}
-        <TouchableOpacity
-          onPress={handleDevBypass}
-          style={{
-            backgroundColor: 'rgba(124, 58, 237, 0.15)',
-            borderColor: '#7c3aed',
-            borderWidth: 1.5,
-            paddingVertical: 14,
-            paddingHorizontal: 16,
-            borderRadius: 14,
-            alignItems: 'center',
-            flexDirection: 'row',
-            justifyContent: 'center',
-            gap: 10,
-          }}
-        >
-          <Ionicons name="flash" size={18} color="#a78bfa" />
-          <View style={{ alignItems: 'flex-start' }}>
-            <Text style={{ color: '#ddd6fe', fontSize: 14, fontWeight: '800' }}>
-              Instant Demo Bypass Login
-            </Text>
-            <Text style={{ color: '#a78bfa', fontSize: 11 }}>
-              Test locally without creating Cognito credentials
-            </Text>
-          </View>
-        </TouchableOpacity>
+        {/* Sign In Footer */}
       </View>
     </ScrollView>
   );

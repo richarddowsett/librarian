@@ -73,18 +73,6 @@ export const Header: React.FC = () => {
           <Text style={{ color: '#f8fafc', fontSize: 13, fontWeight: '600' }}>
             {user.displayName || user.email.split('@')[0]}
           </Text>
-          {user.isDevBypass && (
-            <View
-              style={{
-                backgroundColor: '#7c3aed',
-                paddingHorizontal: 6,
-                paddingVertical: 2,
-                borderRadius: 6,
-              }}
-            >
-              <Text style={{ color: '#ffffff', fontSize: 10, fontWeight: '800' }}>DEV</Text>
-            </View>
-          )}
         </TouchableOpacity>
       )}
     </View>

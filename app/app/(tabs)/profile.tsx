@@ -63,21 +63,6 @@ export default function ProfileScreen() {
             User ID: {user.uid}
           </Text>
         </View>
-
-        {user.isDevBypass && (
-          <View
-            style={{
-              backgroundColor: 'rgba(124, 58, 237, 0.15)',
-              borderColor: '#7c3aed',
-              borderWidth: 1,
-              paddingHorizontal: 10,
-              paddingVertical: 4,
-              borderRadius: 10,
-            }}
-          >
-            <Text style={{ color: '#a78bfa', fontSize: 11, fontWeight: '800' }}>DEV MODE</Text>
-          </View>
-        )}
       </View>
 
       {/* Library Summary */}
