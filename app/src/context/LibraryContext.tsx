@@ -12,6 +12,12 @@ export interface SeriesOverview {
   missingVolumes: number[];
 }
 
+export interface AuthorOverview {
+  authorName: string;
+  totalOwned: number;
+  books: Book[];
+}
+
 interface LibraryContextType {
   books: Book[];
   filteredBooks: Book[];
@@ -25,6 +31,7 @@ interface LibraryContextType {
   deleteBook: (id: string) => Promise<void>;
   getBookById: (id: string) => Book | undefined;
   seriesOverviews: SeriesOverview[];
+  authorOverviews: AuthorOverview[];
   stats: {
     totalBooks: number;
     readCount: number;
@@ -134,6 +141,39 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
 
     return result;
+  }, [userBooks]);
+
+  const authorOverviews = useMemo(() => {
+    const authorMap = new Map<string, Book[]>();
+
+    userBooks.forEach((book) => {
+      if (Array.isArray(book.authors)) {
+        book.authors.forEach((author) => {
+          const cleanAuthor = author.trim();
+          if (cleanAuthor) {
+            if (!authorMap.has(cleanAuthor)) {
+              authorMap.set(cleanAuthor, []);
+            }
+            const existingList = authorMap.get(cleanAuthor)!;
+            if (!existingList.some((b) => b.id === book.id)) {
+              existingList.push(book);
+            }
+          }
+        });
+      }
+    });
+
+    const result: AuthorOverview[] = [];
+    authorMap.forEach((booksForAuthor, authorName) => {
+      const sortedBooks = [...booksForAuthor].sort((a, b) => a.title.localeCompare(b.title));
+      result.push({
+        authorName,
+        totalOwned: sortedBooks.length,
+        books: sortedBooks,
+      });
+    });
+
+    return result.sort((a, b) => b.totalOwned - a.totalOwned);
   }, [userBooks]);
 
   const addBook = async (input: Omit<CreateBookInput, 'ownerId'>) => {
@@ -258,6 +298,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         deleteBook,
         getBookById,
         seriesOverviews,
+        authorOverviews,
         stats,
       }}
     >
