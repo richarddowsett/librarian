@@ -122,7 +122,7 @@ export async function deleteBookApi(id: string, options?: ApiOptions): Promise<b
 export async function lookupIsbnApi(isbn: string, options?: ApiOptions): Promise<any | null> {
   if (!API_BASE_URL) return null;
   try {
-    const response = await fetch(`${API_BASE_URL}/open-library/lookup?isbn=${encodeURIComponent(isbn)}`, {
+    const response = await fetch(`${API_BASE_URL}/google-books/lookup?isbn=${encodeURIComponent(isbn)}`, {
       method: 'GET',
       headers: getHeaders(options),
     });
@@ -137,5 +137,41 @@ export async function lookupIsbnApi(isbn: string, options?: ApiOptions): Promise
   } catch (error) {
     console.error('lookupIsbnApi Error:', error);
     return null;
+  }
+}
+
+export async function fetchAuthorCatalogApi(author: string, options?: ApiOptions): Promise<any[]> {
+  if (!API_BASE_URL) return [];
+  try {
+    const response = await fetch(`${API_BASE_URL}/google-books/author-catalog?author=${encodeURIComponent(author)}`, {
+      method: 'GET',
+      headers: getHeaders(options),
+    });
+
+    if (checkUnauthorized(response, options)) return [];
+    if (!response.ok) return [];
+    const data = await response.json();
+    return data.catalog || [];
+  } catch (error) {
+    console.error('fetchAuthorCatalogApi Error:', error);
+    return [];
+  }
+}
+
+export async function fetchSeriesCatalogApi(series: string, options?: ApiOptions): Promise<any[]> {
+  if (!API_BASE_URL) return [];
+  try {
+    const response = await fetch(`${API_BASE_URL}/google-books/series-catalog?series=${encodeURIComponent(series)}`, {
+      method: 'GET',
+      headers: getHeaders(options),
+    });
+
+    if (checkUnauthorized(response, options)) return [];
+    if (!response.ok) return [];
+    const data = await response.json();
+    return data.catalog || [];
+  } catch (error) {
+    console.error('fetchSeriesCatalogApi Error:', error);
+    return [];
   }
 }

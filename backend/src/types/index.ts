@@ -5,14 +5,18 @@ export interface Book {
   ownerId: string;
   isbn: string;
   title: string;
+  subtitle?: string | null;
   authors: string[];
   coverUrl: string | null;
-  publisher: string;
-  publishDate: string;
-  pageCount: number;
+  publisher?: string | null;
+  publishDate?: string | null;
+  pageCount?: number | null;
+  description?: string | null;
+  categories?: string[] | null;
+  language?: string | null;
   readStatus: ReadStatus;
-  rating?: number;
-  review?: string;
+  rating?: number | null;
+  review?: string | null;
   seriesId?: string | null;
   seriesVolumeNumber?: number | null;
   workId?: string | null;
@@ -23,11 +27,15 @@ export interface Book {
 export interface SanitizedBookMetadata {
   isbn: string;
   title: string;
+  subtitle?: string | null;
   authors: string[];
   coverUrl: string | null;
   publisher: string;
   publishDate: string;
   pageCount: number;
+  description?: string | null;
+  categories?: string[] | null;
+  language?: string | null;
   workKey: string | null;
 }
 
@@ -36,6 +44,7 @@ export interface SeriesVolume {
   title: string;
   isbn?: string | null;
   workId?: string | null;
+  coverUrl?: string | null;
 }
 
 export interface SeriesDetails {

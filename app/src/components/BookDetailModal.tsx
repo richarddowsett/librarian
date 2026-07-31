@@ -147,6 +147,11 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
                 <Text style={{ color: '#f8fafc', fontSize: 20, fontWeight: '800', marginBottom: 4 }}>
                   {book.title}
                 </Text>
+                {book.subtitle ? (
+                  <Text style={{ color: '#cbd5e1', fontSize: 14, fontStyle: 'italic', marginBottom: 4 }}>
+                    {book.subtitle}
+                  </Text>
+                ) : null}
                 <Text style={{ color: '#0284c7', fontSize: 15, fontWeight: '600', marginBottom: 8 }}>
                   By {book.authors.join(', ')}
                 </Text>
@@ -170,6 +175,16 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
                   </View>
                 )}
 
+                {Array.isArray(book.categories) && book.categories.length > 0 && (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+                    {book.categories.map((cat, i) => (
+                      <View key={i} style={{ backgroundColor: 'rgba(168, 85, 247, 0.15)', borderColor: '#a855f7', borderWidth: 1, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}>
+                        <Text style={{ color: '#c084fc', fontSize: 10, fontWeight: '700' }}>{cat}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
                 {book.isbn ? (
                   <Text style={{ color: '#94a3b8', fontSize: 12, fontFamily: 'monospace' }}>
                     ISBN: {book.isbn}
@@ -184,11 +199,31 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
 
                 {book.pageCount ? (
                   <Text style={{ color: '#64748b', fontSize: 12 }}>
-                    Pages: {book.pageCount}
+                    Length: {book.pageCount} pages
                   </Text>
                 ) : null}
               </View>
             </View>
+
+            {book.description ? (
+              <View
+                style={{
+                  backgroundColor: '#0f172a',
+                  borderRadius: 16,
+                  padding: 16,
+                  borderWidth: 1,
+                  borderColor: '#334155',
+                  marginBottom: 20,
+                }}
+              >
+                <Text style={{ color: '#f8fafc', fontSize: 15, fontWeight: '700', marginBottom: 6 }}>
+                  Book Overview & Blurb
+                </Text>
+                <Text style={{ color: '#cbd5e1', fontSize: 14, lineHeight: 22 }}>
+                  {book.description}
+                </Text>
+              </View>
+            ) : null}
 
             {/* Read Status Selection */}
             <View style={{ marginBottom: 20 }}>

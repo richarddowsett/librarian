@@ -118,7 +118,7 @@ describe('API Client Unit Tests', () => {
 
     expect(book).toEqual(mockOpenLibraryBook);
     expect(global.fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/open-library/lookup?isbn=9780441172719'),
+      expect.stringContaining('/google-books/lookup?isbn=9780441172719'),
       expect.anything()
     );
   });

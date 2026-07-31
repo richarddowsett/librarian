@@ -1,13 +1,17 @@
-import { Book } from '../schemas/book';
+import { lookupIsbnApi } from './apiClient';
 
 export interface OpenLibraryBookResult {
   isbn: string;
   title: string;
+  subtitle?: string;
   authors: string[];
   coverUrl?: string;
   publisher?: string;
   publishDate?: string;
   pageCount?: number;
+  description?: string;
+  categories?: string[];
+  language?: string;
   seriesName?: string;
   seriesVolumeNumber?: number;
 }
@@ -16,44 +20,62 @@ export async function fetchBookByISBN(isbn: string): Promise<OpenLibraryBookResu
   const sanitizedIsbn = isbn.replace(/[- ]/g, '').trim();
   if (!sanitizedIsbn) return null;
 
+  if (process.env.NODE_ENV !== 'test') {
+    try {
+      const remoteBook = await lookupIsbnApi(sanitizedIsbn);
+      if (remoteBook) {
+        return {
+          isbn: sanitizedIsbn,
+          title: remoteBook.title || 'Untitled',
+          subtitle: remoteBook.subtitle || undefined,
+          authors: remoteBook.authors || ['Unknown Author'],
+          coverUrl: remoteBook.coverUrl || undefined,
+          publisher: remoteBook.publisher || undefined,
+          publishDate: remoteBook.publishDate || undefined,
+          pageCount: remoteBook.pageCount || undefined,
+          description: remoteBook.description || undefined,
+          categories: remoteBook.categories || undefined,
+          language: remoteBook.language || undefined,
+        };
+      }
+    } catch (error) {
+      // Proceed to direct query fallback
+    }
+  }
+
   try {
     const response = await fetch(
-      `https://openlibrary.org/api/books?bibkeys=ISBN:${sanitizedIsbn}&jscmd=data&format=json`
+      `https://www.googleapis.com/books/v1/volumes?q=isbn:${sanitizedIsbn}`
     );
 
-    if (!response.ok) {
-      throw new Error(`Open Library API error: ${response.status}`);
+    if (!response || !response.ok) {
+      throw new Error(`Google Books API error: ${response?.status || 'Unknown'}`);
     }
 
     const data = await response.json();
-    const key = `ISBN:${sanitizedIsbn}`;
-    const rawBook = data[key];
-
-    if (!rawBook) {
+    if (!data.items || data.items.length === 0) {
       return null;
     }
 
-    const authors = Array.isArray(rawBook.authors)
-      ? rawBook.authors.map((a: any) => a.name)
-      : ['Unknown Author'];
-
-    const publisher = Array.isArray(rawBook.publishers) && rawBook.publishers[0]
-      ? rawBook.publishers[0].name
-      : undefined;
-
-    const coverUrl = rawBook.cover?.large || rawBook.cover?.medium || rawBook.cover?.small || undefined;
+    const volumeInfo = data.items[0].volumeInfo || {};
+    const authors = Array.isArray(volumeInfo.authors) ? volumeInfo.authors : ['Unknown Author'];
+    const coverUrl = volumeInfo.imageLinks?.extraLarge || volumeInfo.imageLinks?.large || volumeInfo.imageLinks?.thumbnail;
 
     return {
       isbn: sanitizedIsbn,
-      title: rawBook.title || 'Untitled',
+      title: volumeInfo.title || 'Untitled',
+      subtitle: volumeInfo.subtitle || undefined,
       authors,
-      coverUrl,
-      publisher,
-      publishDate: rawBook.publish_date,
-      pageCount: rawBook.number_of_pages,
+      coverUrl: coverUrl ? coverUrl.replace(/^http:/, 'https:') : undefined,
+      publisher: volumeInfo.publisher,
+      publishDate: volumeInfo.publishedDate,
+      pageCount: volumeInfo.pageCount,
+      description: volumeInfo.description ? volumeInfo.description.replace(/<[^>]*>?/gm, '') : undefined,
+      categories: volumeInfo.categories,
+      language: volumeInfo.language,
     };
   } catch (error) {
-    console.error('Error fetching book from Open Library:', error);
+    console.error('Error fetching book from Google Books:', error);
     throw error;
   }
 }

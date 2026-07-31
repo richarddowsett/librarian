@@ -44,6 +44,13 @@ data "archive_file" "open_library_lambda" {
   output_path = "${path.module}/build/openLibrary.zip"
 }
 
+data "archive_file" "google_books_lambda" {
+  depends_on  = [terraform_data.build_backend]
+  type        = "zip"
+  source_file = "${path.module}/../backend/dist/handlers/googleBooks.js"
+  output_path = "${path.module}/build/googleBooks.zip"
+}
+
 # Standard Lambda AssumeRole Policy Document
 data "aws_iam_policy_document" "lambda_assume_role" {
   statement {
@@ -245,6 +252,47 @@ resource "aws_lambda_function" "open_library" {
   timeout          = 10
 }
 
+# --- 4b. Google Books Proxy Lambda & IAM Role ---
+resource "aws_iam_role" "google_books_lambda_role" {
+  name               = "${local.name_prefix}-google-books-lambda-role"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+}
+
+resource "aws_iam_role_policy_attachment" "google_books_lambda_basic" {
+  role       = aws_iam_role.google_books_lambda_role.name
+  policy_arn = "arn:aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_policy" "google_books_secrets_policy" {
+  name        = "${local.name_prefix}-google-books-secrets-policy"
+  description = "Allows Google Books Lambda to read API key from Secrets Manager"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "google_books_lambda_secrets" {
+  role       = aws_iam_role.google_books_lambda_role.name
+  policy_arn = aws_iam_policy.google_books_secrets_policy.arn
+}
+
+resource "aws_lambda_function" "google_books" {
+  filename         = data.archive_file.google_books_lambda.output_path
+  source_code_hash = data.archive_file.google_books_lambda.output_base64sha256
+  function_name    = "${local.name_prefix}-google-books-service"
+  role             = aws_iam_role.google_books_lambda_role.arn
+  handler          = "googleBooks.handler"
+  runtime          = "nodejs20.x"
+  timeout          = 15
+}
+
 # --- 5. AWS API Gateway v2 (HTTP API) & Cognito JWT Authorizer ---
 resource "aws_apigatewayv2_api" "main" {
   name          = "${local.name_prefix}-http-api"
@@ -302,6 +350,13 @@ resource "aws_apigatewayv2_integration" "open_library" {
   api_id                 = aws_apigatewayv2_api.main.id
   integration_type       = "AWS_PROXY"
   integration_uri        = aws_lambda_function.open_library.invoke_arn
+  payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_integration" "google_books" {
+  api_id                 = aws_apigatewayv2_api.main.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.google_books.invoke_arn
   payload_format_version = "2.0"
 }
 
@@ -401,6 +456,27 @@ resource "aws_apigatewayv2_route" "open_library_lookup" {
   authorization_type = "NONE"
 }
 
+resource "aws_apigatewayv2_route" "google_books_lookup" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "GET /google-books/lookup"
+  target             = "integrations/${aws_apigatewayv2_integration.google_books.id}"
+  authorization_type = "NONE"
+}
+
+resource "aws_apigatewayv2_route" "google_books_author_catalog" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "GET /google-books/author-catalog"
+  target             = "integrations/${aws_apigatewayv2_integration.google_books.id}"
+  authorization_type = "NONE"
+}
+
+resource "aws_apigatewayv2_route" "google_books_series_catalog" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "GET /google-books/series-catalog"
+  target             = "integrations/${aws_apigatewayv2_integration.google_books.id}"
+  authorization_type = "NONE"
+}
+
 # --- 8. Lambda Invocation Permissions for API Gateway ---
 resource "aws_lambda_permission" "api_gateway_books" {
   statement_id  = "AllowExecutionFromAPIGateway"
@@ -430,6 +506,14 @@ resource "aws_lambda_permission" "api_gateway_open_library" {
   statement_id  = "AllowExecutionFromAPIGateway"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.open_library.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "api_gateway_google_books" {
+  statement_id  = "AllowExecutionFromAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.google_books.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
 }
