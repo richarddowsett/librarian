@@ -17,6 +17,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   build-test-migrate:
@@ -46,6 +47,36 @@ jobs:
       - name: Build TypeScript Output & Bundles
         run: npm run build
 
+      - name: Configure AWS Credentials
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'eu-central-1' }}
+
+      - name: Fetch DB Credentials from AWS Secrets Manager
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        id: db_secret
+        run: |
+          SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id aurora-db-credentials --query SecretString --output text 2>/dev/null || echo "")
+          if [ -n "$SECRET_JSON" ]; then
+            DB_HOST=$(echo "$SECRET_JSON" | jq -r '.host // .engine // empty')
+            DB_PORT=$(echo "$SECRET_JSON" | jq -r '.port // empty')
+            DB_NAME=$(echo "$SECRET_JSON" | jq -r '.dbname // .database // empty')
+            DB_USER=$(echo "$SECRET_JSON" | jq -r '.username // .user // empty')
+            DB_PASSWORD=$(echo "$SECRET_JSON" | jq -r '.password // empty')
+
+            [ -n "$DB_HOST" ] && echo "db_host=$DB_HOST" >> $GITHUB_OUTPUT
+            [ -n "$DB_PORT" ] && echo "db_port=$DB_PORT" >> $GITHUB_OUTPUT
+            [ -n "$DB_NAME" ] && echo "db_name=$DB_NAME" >> $GITHUB_OUTPUT
+            [ -n "$DB_USER" ] && echo "db_user=$DB_USER" >> $GITHUB_OUTPUT
+            if [ -n "$DB_PASSWORD" ]; then
+              echo "::add-mask::$DB_PASSWORD"
+              echo "db_password=$DB_PASSWORD" >> $GITHUB_OUTPUT
+            fi
+          fi
+
       - name: Setup Flyway CLI
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         uses: red-gate/setup-flyway@v1
@@ -57,11 +88,11 @@ jobs:
       - name: Run Flyway PostgreSQL Database Migrations
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         env:
-          DB_HOST: ${{ secrets.DB_HOST }}
-          DB_PORT: ${{ secrets.DB_PORT || '5432' }}
-          DB_NAME: ${{ secrets.DB_NAME || 'librarian' }}
-          DB_USER: ${{ secrets.DB_USER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_HOST: ${{ steps.db_secret.outputs.db_host || secrets.DB_HOST }}
+          DB_PORT: ${{ steps.db_secret.outputs.db_port || secrets.DB_PORT || '5432' }}
+          DB_NAME: ${{ steps.db_secret.outputs.db_name || secrets.DB_NAME || 'librarian' }}
+          DB_USER: ${{ steps.db_secret.outputs.db_user || secrets.DB_USER }}
+          DB_PASSWORD: ${{ steps.db_secret.outputs.db_password || secrets.DB_PASSWORD }}
         run: |
           flyway migrate \
             -url="jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}" \
