@@ -58,8 +58,25 @@ jobs:
       - name: Fetch DB Credentials from AWS Secrets Manager
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         id: db_secret
+        env:
+          ENV_NAME: ${{ secrets.ENVIRONMENT || 'dev' }}
         run: |
-          SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id aurora-db-credentials --query SecretString --output text 2>/dev/null || echo "")
+          SECRET_NAMES=(
+            "librarian-${ENV_NAME}-aurora-db-credentials"
+            "librarian-aurora-db-credentials"
+            "aurora-db-credentials"
+          )
+
+          SECRET_JSON=""
+          for sname in "${SECRET_NAMES[@]}"; do
+            echo "Attempting to fetch secret: $sname"
+            SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id "$sname" --query SecretString --output text 2>/dev/null || echo "")
+            if [ -n "$SECRET_JSON" ]; then
+              echo "Successfully fetched secret: $sname"
+              break
+            fi
+          done
+
           if [ -n "$SECRET_JSON" ]; then
             DB_HOST=$(echo "$SECRET_JSON" | jq -r '.host // .engine // empty')
             DB_PORT=$(echo "$SECRET_JSON" | jq -r '.port // empty')
@@ -75,6 +92,8 @@ jobs:
               echo "::add-mask::$DB_PASSWORD"
               echo "db_password=$DB_PASSWORD" >> $GITHUB_OUTPUT
             fi
+          else
+            echo "::warning::Could not find Aurora DB credentials secret in AWS Secrets Manager."
           fi
 
       - name: Setup Flyway CLI

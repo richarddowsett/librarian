@@ -18,7 +18,13 @@ export async function getDbPool(): Promise<Pool> {
   if (!process.env.PGHOST && process.env.NODE_ENV !== 'test') {
     try {
       const client = new SecretsManagerClient({ region: process.env.AWS_REGION || 'eu-central-1' });
-      const secretRes = await client.send(new GetSecretValueCommand({ SecretId: 'aurora-db-credentials' }));
+      let secretRes;
+      const secretName = process.env.SECRET_ID || `librarian-${process.env.NODE_ENV || 'dev'}-aurora-db-credentials`;
+      try {
+        secretRes = await client.send(new GetSecretValueCommand({ SecretId: secretName }));
+      } catch {
+        secretRes = await client.send(new GetSecretValueCommand({ SecretId: 'aurora-db-credentials' }));
+      }
       if (secretRes.SecretString) {
         const creds = JSON.parse(secretRes.SecretString);
         host = creds.host || creds.engine || host;
