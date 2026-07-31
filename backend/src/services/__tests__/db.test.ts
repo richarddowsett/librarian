@@ -99,6 +99,62 @@ describe('PostgreSQL Database Service', () => {
       );
       expect(result.id).toBe('ub-new-123');
     });
+
+    it('allows multiple distinct users to add the same book while sharing the underlying catalog entry', async () => {
+      const sharedBookId = 'shared-book-uuid-100';
+
+      // User 1 adds the book (not in DB initially)
+      mockQuery.mockResolvedValueOnce({ rows: [] }); // Check ISBN -> empty
+      mockQuery.mockResolvedValueOnce({ rows: [{ id: sharedBookId }] }); // Insert into books catalog
+      mockQuery.mockResolvedValueOnce({ rows: [{ id: 'user1-ub-1' }] }); // Insert user 1 user_books link
+      mockQuery.mockResolvedValueOnce({
+        rows: [
+          {
+            id: 'user1-ub-1',
+            user_id: 'user-1',
+            isbn: '9780140449136',
+            title: 'The Odyssey',
+            authors: ['Homer'],
+            read_status: 'unread',
+          },
+        ],
+      }); // Joined select
+
+      const user1Book = await addBookForUser('user-1', {
+        isbn: '9780140449136',
+        title: 'The Odyssey',
+        authors: ['Homer'],
+      });
+
+      // User 2 adds the exact same ISBN (found in internal DB)
+      mockQuery.mockResolvedValueOnce({ rows: [{ id: sharedBookId }] }); // Check ISBN -> found sharedBookId!
+      mockQuery.mockResolvedValueOnce({ rows: [{ id: 'user2-ub-2' }] }); // Insert user 2 user_books link
+      mockQuery.mockResolvedValueOnce({
+        rows: [
+          {
+            id: 'user2-ub-2',
+            user_id: 'user-2',
+            isbn: '9780140449136',
+            title: 'The Odyssey',
+            authors: ['Homer'],
+            read_status: 'reading',
+          },
+        ],
+      }); // Joined select
+
+      const user2Book = await addBookForUser('user-2', {
+        isbn: '9780140449136',
+        title: 'The Odyssey',
+        authors: ['Homer'],
+        readStatus: 'reading',
+      });
+
+      expect(user1Book.ownerId).toBe('user-1');
+      expect(user2Book.ownerId).toBe('user-2');
+      expect(user1Book.id).toBe('user1-ub-1');
+      expect(user2Book.id).toBe('user2-ub-2');
+      expect(user1Book.isbn).toBe(user2Book.isbn);
+    });
   });
 
   describe('deleteUserBook', () => {
