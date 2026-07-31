@@ -77,7 +77,7 @@ resource "aws_iam_role_policy_attachment" "books_lambda_basic" {
 
 resource "aws_iam_policy" "books_table_policy" {
   name        = "${local.name_prefix}-books-table-policy"
-  description = "Scoped DynamoDB permissions for Books Lambda to access books table ONLY"
+  description = "Scoped DynamoDB permissions for Books Lambda to access users, books catalog, and user_library tables"
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -89,11 +89,16 @@ resource "aws_iam_policy" "books_table_policy" {
           "dynamodb:PutItem",
           "dynamodb:UpdateItem",
           "dynamodb:DeleteItem",
-          "dynamodb:Query"
+          "dynamodb:Query",
+          "dynamodb:BatchGetItem"
         ]
         Resource = [
+          aws_dynamodb_table.users.arn,
+          "${aws_dynamodb_table.users.arn}/index/*",
           aws_dynamodb_table.books.arn,
-          "${aws_dynamodb_table.books.arn}/index/*"
+          "${aws_dynamodb_table.books.arn}/index/*",
+          aws_dynamodb_table.user_library.arn,
+          "${aws_dynamodb_table.user_library.arn}/index/*"
         ]
       }
     ]
@@ -116,7 +121,9 @@ resource "aws_lambda_function" "books" {
 
   environment {
     variables = {
-      BOOKS_TABLE_NAME = aws_dynamodb_table.books.name
+      USERS_TABLE_NAME        = aws_dynamodb_table.users.name
+      BOOKS_TABLE_NAME        = aws_dynamodb_table.books.name
+      USER_LIBRARY_TABLE_NAME = aws_dynamodb_table.user_library.name
     }
   }
 }

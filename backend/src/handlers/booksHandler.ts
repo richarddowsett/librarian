@@ -2,7 +2,7 @@ import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
 import {
   getBooksByOwner,
   getBookById,
-  putBook,
+  addBookForUser,
   updateBook,
   deleteBook,
 } from '../services/dynamoService';
@@ -57,14 +57,8 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<APIGateway
     // POST /books - Add a new book for current user
     if (method === 'POST') {
       const body = JSON.parse(event.body || '{}');
-      const newBook: Book = {
-        ...body,
-        id: body.id || `book_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-        ownerId: userId,
-        dateAdded: new Date().toISOString(),
-      };
-      await putBook(newBook);
-      return jsonResponse(201, { success: true, book: newBook });
+      const book = await addBookForUser(userId, body);
+      return jsonResponse(201, { success: true, book });
     }
 
     // PUT /books/{id} - Update a book

@@ -15,7 +15,7 @@ import {
   updateBook,
   updateSeries,
   updateUserSeriesStatus,
-} from '../db';
+} from '../firestoreService';
 
 describe('Database and Firestore Service (Local Mock & Offline Fallback)', () => {
   beforeEach(() => {
