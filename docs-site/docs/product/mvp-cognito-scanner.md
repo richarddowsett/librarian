@@ -11,7 +11,7 @@ sidebar_position: 2
 * Provide secure user authentication using AWS Cognito User Pool.
 * Implement live ISBN barcode scanning using `expo-camera`.
 * Proxy Open Library API requests for book details via AWS Lambda.
-* Persist scanned books securely in AWS DynamoDB with Cognito JWT authorization.
+* Persist scanned books securely in Amazon Aurora Serverless v2 PostgreSQL (0.5 - 2.0 ACUs) with Flyway SQL migrations and Cognito JWT authorization.
 
 ## Target Audience
 * Book collectors and readers looking for a personal library management and series tracking application.
@@ -22,4 +22,4 @@ sidebar_position: 2
 
 ## Security Architecture
 * **Cognito JWT Validation:** API Gateway uses a JWT authorizer to validate tokens issued by AWS Cognito.
-* **DynamoDB User Isolation:** Scanned books are isolated by `ownerId` matching the Cognito `sub` claim.
+* **PostgreSQL User Isolation:** Shared global `books` table indexed by ISBN and `user_books` junction table isolating user read status, ratings, and reviews by `user_id` matching the Cognito `sub` claim.

@@ -19,8 +19,8 @@ permissions:
   contents: read
 
 jobs:
-  build-and-test:
-    name: Build & Test Backend Module
+  build-test-migrate:
+    name: Build, Test & Flyway Database Migration
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -40,11 +40,21 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      - name: Run Tests
+      - name: Run Backend Unit Tests
         run: npm test
 
-      - name: Build TypeScript Output
+      - name: Build TypeScript Output & Bundles
         run: npm run build
+
+      - name: Run Flyway PostgreSQL Database Migrations
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: flyway/flyway-action@v10
+        with:
+          url: 'jdbc:postgresql://${{ secrets.DB_HOST }}:${{ secrets.DB_PORT || "5432" }}/${{ secrets.DB_NAME || "librarian" }}'
+          user: '${{ secrets.DB_USER }}'
+          password: '${{ secrets.DB_PASSWORD }}'
+          locations: 'filesystem:backend/migrations'
+          command: 'migrate'
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4

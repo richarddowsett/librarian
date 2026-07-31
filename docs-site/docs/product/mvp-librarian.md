@@ -31,7 +31,7 @@ By providing a fast, cross-platform barcode-scanning experience coupled with aut
 *   **Single Codebase Setup**: React Native / Expo project configured for Web, iOS, and Android.
 *   **Security Foundation**:
     - AWS Cognito User Pools & Identity Pools with passwordless/OTP links and federated Google/Apple sign-in.
-    - Fine-Grained Access Control (FGAC) IAM policies enforcing strict user data isolation in DynamoDB.
+    - Database user isolation in Amazon Aurora Serverless v2 PostgreSQL (0.5 - 2.0 ACUs) managed with Flyway migrations (`backend/migrations/V1__initial_schema.sql`) in GitHub Actions (`deploy-backend.yml`).
     - AWS WAF with rate limiting and bot protection.
     - Zod schemas for sanitizing and validating all user input.
 *   **Cataloging Engine**:
@@ -60,7 +60,7 @@ Since Librarian stores personal user logs and uses federated authentication, sec
 
 | Threat Vector | Description | MVP Control / Mitigation |
 | :--- | :--- | :--- |
-| **Unauthorized Data Access** | Users accessing or editing other users' libraries. | **DynamoDB Fine-Grained IAM Access Control** enforcing `dynamodb:LeadingKeys` condition matching `${cognito-identity.amazonaws.com:sub}`. |
+| **Unauthorized Data Access** | Users accessing or editing other users' libraries. | **PostgreSQL User Isolation** isolating `user_books` records by `user_id` matching the Cognito `sub` claim. |
 | **Injection Attacks** | Malicious book title or review inputs causing XSS or script execution. | **Zod validation schemas** run on the client before writing, and all text elements rendered using standard React Native/React text components which escape HTML by default. |
 | **API Abuse / Spam** | Malicious scripts making excessive calls to API wrappers or backend resources. | **AWS WAF (Web Application Firewall)** with IP rate-limiting, AWS Managed Rules, and Cognito JWT authorization on API endpoints. |
 | **Secrets Exposure** | Hardcoded AWS config keys or credentials exposed in version control. | **Expo Environment Variables** (`.env` files) git-ignored, and production credentials stored in AWS Parameter Store / Secrets Manager. |
@@ -68,51 +68,62 @@ Since Librarian stores personal user logs and uses federated authentication, sec
 
 ---
 
-## 5. AWS DynamoDB Schema
+## 5. Amazon Aurora Serverless v2 PostgreSQL Schema
+
+Database Architecture: **Amazon Aurora Serverless v2 PostgreSQL (0.5 - 2.0 ACUs)**.  
+Database Migrations: Managed using **Flyway SQL migrations** (`backend/migrations/V1__initial_schema.sql`) integrated in GitHub Actions (`deploy-backend.yml`).
 
 ```mermaid
 erDiagram
-    USERS ||--o{ BOOKS : owns
-    USERS ||--o{ USER_SERIES_STATUS : tracks
+    USERS ||--o{ USER_BOOKS : has
+    BOOKS ||--o{ USER_BOOKS : referenced_by
     BOOKS }|--|| SERIES : belongs_to
+    USERS ||--o{ USER_SERIES_STATUS : tracks
     
     USERS {
-        string sub PK "Cognito Identity ID"
+        uuid id PK "Cognito sub"
         string email
         string displayName
         timestamp createdAt
     }
     
     BOOKS {
-        string ownerId PK "Partition Key (Cognito sub)"
-        string id SK "Sort Key (UUID)"
-        string isbn GSI
+        uuid id PK "UUID"
+        string isbn UK "Indexed by ISBN (deduplicated)"
         string title
         string authors
         string coverUrl
         string publisher
         string publishDate
         int pageCount
+        uuid seriesId FK
+        int seriesVolumeNumber
+        timestamp createdAt
+    }
+
+    USER_BOOKS {
+        uuid id PK "UUID"
+        uuid userId FK "Cognito sub (User isolation)"
+        uuid bookId FK "Reference to books table"
         string readStatus "unread | reading | read"
         int rating "1-5"
         string review
-        string seriesId
-        int seriesVolumeNumber
         timestamp dateAdded
         timestamp dateRead
     }
     
     SERIES {
-        string id PK "Partition Key"
+        uuid id PK "UUID"
         string name
         string openLibraryWorkId
         string volumesList "array of ISBNs/Titles"
     }
 
     USER_SERIES_STATUS {
-        string userId PK "Partition Key (Cognito sub)"
-        string seriesId SK "Sort Key"
+        uuid userId PK "Cognito sub"
+        uuid seriesId PK "UUID"
         boolean isCompleted
         string ignoredVolumes "array of ISBNs"
     }
 ```
+

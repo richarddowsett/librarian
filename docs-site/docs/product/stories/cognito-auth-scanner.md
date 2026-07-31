@@ -11,7 +11,7 @@ sidebar_position: 4
 * **Sign-Up:** As a new user, I want to sign up with my email and password so that I can create a secure account.
 * **Verification:** As a new user, I want to verify my email address with a 6-digit confirmation code so that my account is activated.
 * **Login:** As a returning user, I want to log in securely with my credentials so that I can access my personalized library.
-* **ISBN Scanning:** As a logged-in user, I want to scan a book's ISBN barcode using my camera so that I can automatically retrieve metadata and save it to DynamoDB.
+* **ISBN Scanning:** As a logged-in user, I want to scan a book's ISBN barcode using my camera so that I can automatically retrieve metadata and save it to Amazon Aurora Serverless v2 PostgreSQL.
 
 ## Gherkin Acceptance Criteria
 
@@ -35,7 +35,7 @@ When I scan a valid book ISBN barcode with the camera
 Then the app should query the API Gateway Open Library proxy
 And retrieve book title, author, cover image, and publisher metadata
 When I click "Add to My Library"
-Then the book details should be saved to AWS DynamoDB under my Cognito sub identifier
+Then the book details should be saved to Amazon Aurora Serverless v2 PostgreSQL in the deduplicated `books` table and linked in `user_books` under my Cognito sub identifier
 And appear instantly in my book collection
 ```
 
@@ -49,7 +49,8 @@ And appear instantly in my book collection
 ### Backend
 * AWS API Gateway v2 with Cognito JWT Authorizer.
 * Node.js 20 Lambda services (`books`, `openLibrary`, `series`, `userSeriesStatus`).
+* Amazon Aurora Serverless v2 PostgreSQL (0.5 - 2.0 ACUs) with Flyway migrations (`backend/migrations/V1__initial_schema.sql`) integrated in GitHub Actions (`deploy-backend.yml`).
 
 ### Security
 * AWS Cognito User Pool (`librarian-dev-user-pool`).
-* IAM Fine-Grained Access Control (FGAC) isolating user data in DynamoDB by `ownerId`.
+* PostgreSQL junction table user data isolation (`user_books.user_id` matching Cognito `sub`).

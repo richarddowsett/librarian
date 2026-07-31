@@ -1,5 +1,4 @@
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
-import { getSeriesById, getAllSeries, putSeries } from '../services/dynamoService';
 import { fetchSeriesDetails } from '../services/series';
 import { SeriesDetails } from '../types';
 
@@ -22,37 +21,17 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<APIGateway
   const seriesId = pathParameters.id;
 
   try {
-    // GET /series - List all cached series
-    if (method === 'GET' && !seriesId) {
-      const seriesList = await getAllSeries();
-      return jsonResponse(200, { success: true, series: seriesList });
+    if (method === 'OPTIONS') {
+      return jsonResponse(200, { success: true });
     }
 
     // GET /series/{id} - Get single series details
     if (method === 'GET' && seriesId) {
-      let series = await getSeriesById(seriesId);
-      if (!series && seriesId.startsWith('OL')) {
-        // Try fetching series metadata from Open Library if missing
-        series = await fetchSeriesDetails(seriesId);
-        if (series) {
-          await putSeries(series);
-        }
-      }
+      const series = await fetchSeriesDetails(seriesId);
       if (!series) {
         return jsonResponse(404, { success: false, error: 'Series not found' });
       }
       return jsonResponse(200, { success: true, series });
-    }
-
-    // POST /series - Add or update a series
-    if (method === 'POST') {
-      const body = JSON.parse(event.body || '{}');
-      const newSeries: SeriesDetails = {
-        ...body,
-        id: body.id || `series_${Date.now()}`,
-      };
-      await putSeries(newSeries);
-      return jsonResponse(201, { success: true, series: newSeries });
     }
 
     return jsonResponse(405, { success: false, error: 'Method Not Allowed' });

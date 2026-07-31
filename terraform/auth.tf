@@ -191,10 +191,10 @@ resource "aws_cognito_identity_pool_roles_attachment" "main" {
   }
 }
 
-# 8. Fine-Grained Access Control (FGAC) Policy for User Data Isolation in DynamoDB
-resource "aws_iam_policy" "dynamodb_user_isolation" {
-  name        = "${local.name_prefix}-dynamodb-user-isolation"
-  description = "Enforces strict user isolation using DynamoDB LeadingKeys matching Cognito sub"
+# 8. IAM Policy for Authenticated Cognito Users to invoke API Gateway
+resource "aws_iam_policy" "api_user_access" {
+  name        = "${local.name_prefix}-api-user-access"
+  description = "Allows authenticated Cognito users to execute API Gateway endpoints"
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -202,41 +202,17 @@ resource "aws_iam_policy" "dynamodb_user_isolation" {
       {
         Effect = "Allow"
         Action = [
-          "dynamodb:GetItem",
-          "dynamodb:PutItem",
-          "dynamodb:UpdateItem",
-          "dynamodb:DeleteItem",
-          "dynamodb:Query"
+          "execute-api:Invoke"
         ]
         Resource = [
-          aws_dynamodb_table.books.arn,
-          "${aws_dynamodb_table.books.arn}/index/*",
-          aws_dynamodb_table.user_series_status.arn
-        ]
-        Condition = {
-          "ForAllValues:StringEquals" = {
-            "dynamodb:LeadingKeys" = ["$${cognito-identity.amazonaws.com:sub}"]
-          }
-        }
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "dynamodb:GetItem",
-          "dynamodb:BatchGetItem",
-          "dynamodb:Query",
-          "dynamodb:Scan"
-        ]
-        Resource = [
-          aws_dynamodb_table.series.arn
+          "${aws_apigatewayv2_api.main.execution_arn}/*"
         ]
       }
     ]
   })
 }
 
-# 9. IAM Policy Attachment for Authenticated Cognito Users
-resource "aws_iam_role_policy_attachment" "authenticated_dynamodb" {
+resource "aws_iam_role_policy_attachment" "authenticated_api" {
   role       = aws_iam_role.authenticated.name
-  policy_arn = aws_iam_policy.dynamodb_user_isolation.arn
+  policy_arn = aws_iam_policy.api_user_access.arn
 }

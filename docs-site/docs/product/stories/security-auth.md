@@ -7,7 +7,7 @@ sidebar_position: 1
 
 # Epic: Secure Identity & Access Management
 
-This Epic covers the implementation of AWS Cognito-powered federated and passwordless authentication, client-side zod schema validation, and secure DynamoDB data isolation rules via IAM Fine-Grained Access Control (FGAC).
+This Epic covers the implementation of AWS Cognito-powered federated and passwordless authentication, client-side zod schema validation, and secure Amazon Aurora Serverless v2 PostgreSQL user data isolation rules managed via Flyway schema migrations.
 
 ---
 
@@ -41,20 +41,20 @@ This Epic covers the implementation of AWS Cognito-powered federated and passwor
 ## User Story 2: User Data Isolation
 
 **As a** security-conscious application owner,
-**I want** database records to be accessible only by their respective owners using AWS IAM Fine-Grained Access Control,
-**So that** no user can view, edit, or delete another user's cataloged books or reviews.
+**I want** database records in `user_books` to be isolated strictly by `user_id` matching the user's Cognito `sub`,
+**So that** no user can view, edit, or delete another user's personal book status, ratings, or reviews in PostgreSQL.
 
 ### Acceptance Criteria
 
-#### Scenario: Unauthorized Document Retrieval
-*   **Given** a malicious user `User_B` attempts to read a book document owned by `User_A`,
-*   **When** the DynamoDB request is executed by `User_B` using their Cognito AWS credentials,
-*   **Then** AWS IAM denies the operation with an AccessDenied exception because `User_B`'s Cognito sub does not match `User_A`'s partition key (`dynamodb:LeadingKeys`).
+#### Scenario: Unauthorized Record Retrieval
+*   **Given** a malicious user `User_B` attempts to read user library records owned by `User_A`,
+*   **When** the API query is executed for `User_B` using their Cognito JWT (`sub`),
+*   **Then** the query filters strictly by `user_books.user_id = User_B_sub` and denies returning `User_A`'s personal records.
 
-#### Scenario: Authorized Document Mutation
-*   **Given** `User_A` is authenticated and attempts to update the review content of a book document they own,
-*   **When** the update operation is executed with their Cognito AWS credentials,
-*   **Then** IAM permits the operation because `User_A`'s Cognito sub matches the `dynamodb:LeadingKeys` condition.
+#### Scenario: Authorized Record Mutation
+*   **Given** `User_A` is authenticated and attempts to update the review content of a `user_books` record they own,
+*   **When** the update operation is executed with their verified Cognito `sub`,
+*   **Then** PostgreSQL permits updating the `user_books` row where `user_id = User_A_sub` and `book_id = target_book_id`.
 
 ---
 
@@ -66,33 +66,13 @@ This Epic covers the implementation of AWS Cognito-powered federated and passwor
 *   Create a responsive Login component styled with clean form inputs.
 *   Handle Expo deep-linking to capture incoming Cognito authentication tokens on mobile and web.
 
-### Backend & Database (AWS Cognito & DynamoDB)
+### Backend & Database (AWS Cognito & Amazon Aurora Serverless v2 PostgreSQL)
 *   Provision AWS Cognito User Pool with Google & Apple identity providers.
-*   Configure Cognito Identity Pool mapping authenticated users to IAM Role `librarian-authenticated-role`.
-*   Deploy IAM Policy for DynamoDB Fine-Grained Access Control:
-    ```json
-    {
-      "Version": "2012-10-17",
-      "Statement": [
-        {
-          "Effect": "Allow",
-          "Action": [
-            "dynamodb:GetItem",
-            "dynamodb:PutItem",
-            "dynamodb:UpdateItem",
-            "dynamodb:DeleteItem",
-            "dynamodb:Query"
-          ],
-          "Resource": "arn:aws:dynamodb:*:*:table/librarian-books-*",
-          "Condition": {
-            "ForAllValues:StringEquals": {
-              "dynamodb:LeadingKeys": ["${cognito-identity.amazonaws.com:sub}"]
-            }
-          }
-        }
-      ]
-    }
-    ```
+*   Provision **Amazon Aurora Serverless v2 PostgreSQL** (0.5 - 2.0 ACUs).
+*   Manage database migrations using **Flyway SQL migrations** (`backend/migrations/V1__initial_schema.sql`) integrated into GitHub Actions (`deploy-backend.yml`).
+*   Implement deduplicated catalog structure:
+    *   Global shared `books` table indexed by ISBN.
+    *   `user_books` junction table isolating user read status, ratings, and reviews by `user_id` (Cognito `sub`).
 
 ### Security & Validation
 *   Write client-side schemas using **Zod** to validate standard user details.

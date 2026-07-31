@@ -11,12 +11,12 @@ sidebar_label: Roadmap
 ## Phase 1: Security & Foundation
 * AWS Cognito User Pool Auth
 * JWT API Gateway Authorizer
-* DynamoDB FGAC (Fine-Grained Access Control by `sub`)
+* Amazon Aurora Serverless v2 PostgreSQL Database & Flyway Migrations
 
 ## Phase 2: Functional Core & Mobile UI
 * Expo Camera ISBN Barcode Scanner
-* Open Library & Google Books Proxy Services
-* Personal Collection Storage in DynamoDB
+* Google Books Proxy Service with ISBN Deduplication
+* Personal Collection Storage in PostgreSQL (`books` catalog and `user_books` junction table)
 
 ## Phase 3: AI & Advanced Enhancements
 * **"Chat with Paige" Conversational AI Companion:** Natural language Q&A over the user's personal library ("Paige, do I own Volume 4?", "What fantasy book should I read next?")

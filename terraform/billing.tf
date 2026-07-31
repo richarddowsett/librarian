@@ -48,10 +48,7 @@ resource "aws_iam_policy" "budget_freeze_policy" {
         Sid    = "DenyOperationsOnBudgetExceeded"
         Effect = "Deny"
         Action = [
-          "dynamodb:PutItem",
-          "dynamodb:UpdateItem",
-          "dynamodb:DeleteItem",
-          "dynamodb:BatchWriteItem",
+          "rds:ModifyDBCluster",
           "s3:PutObject",
           "s3:DeleteObject",
           "lambda:InvokeFunction"

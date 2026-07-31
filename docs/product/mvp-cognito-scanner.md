@@ -9,8 +9,8 @@ sidebar_label: MVP: Auth & Scanner
 ## Objectives
 * Provide secure user authentication using AWS Cognito.
 * Implement ISBN barcode scanning using the Expo Camera.
-* Proxy Open Library requests for book details.
-* Persist scanned books securely in DynamoDB.
+* Proxy Google Books requests for book details via backend API Gateway.
+* Persist scanned books securely in Amazon Aurora Serverless v2 PostgreSQL.
 
 ## Target Audience
 * Book collectors and readers looking for a personal library management tool.
@@ -20,5 +20,5 @@ sidebar_label: MVP: Auth & Scanner
 * AI recommendations.
 
 ## Security Architecture
-* **Cognito JWT Validation:** API Gateway will use a JWT authorizer to validate tokens from Cognito.
-* **DynamoDB User Isolation:** Data will be isolated by `sub` (or `ownerId`) to ensure users can only access their own data via Fine-Grained Access Control (FGAC).
+* **Cognito JWT Validation:** API Gateway uses a JWT authorizer to validate tokens from Cognito.
+* **PostgreSQL User Data Isolation:** User library links and ratings are isolated by `user_id` (Cognito `sub`) in the `user_books` table, referencing shared deduplicated items in the global `books` table.

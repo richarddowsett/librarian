@@ -18,11 +18,17 @@ export interface Book {
   rating?: number | null;
   review?: string | null;
   seriesId?: string | null;
+  seriesName?: string | null;
   seriesVolumeNumber?: number | null;
   workId?: string | null;
   dateAdded: string;
   dateRead?: string | null;
 }
+
+export type CreateBookInput = Partial<Book> & {
+  title: string;
+  isbn: string;
+};
 
 export interface SanitizedBookMetadata {
   isbn: string;

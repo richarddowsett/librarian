@@ -9,14 +9,14 @@
     "build": "tsc && node build.js"
   },
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.550.0",
     "@aws-sdk/client-secrets-manager": "^3.1101.0",
-    "@aws-sdk/lib-dynamodb": "^3.550.0"
+    "pg": "^8.22.0"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.138",
     "@types/jest": "^29.5.12",
     "@types/node": "^20.11.0",
+    "@types/pg": "^8.20.1",
     "esbuild": "^0.20.2",
     "jest": "^29.7.0",
     "ts-jest": "^29.1.2",

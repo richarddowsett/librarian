@@ -1,17 +1,15 @@
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
 import {
-  getUserSeriesStatus,
-  getAllUserSeriesStatuses,
-  putUserSeriesStatus,
-} from '../services/dynamoService';
-import { UserSeriesStatus } from '../types';
+  getUserSeriesStatusDb,
+  saveUserSeriesStatusDb,
+} from '../services/db';
 
 function getUserId(event: APIGatewayProxyEventV2): string {
   const claims = (event.requestContext as any)?.authorizer?.jwt?.claims;
   if (claims && typeof claims.sub === 'string') {
     return claims.sub;
   }
-  return (event.headers && event.headers['x-user-id']) || 'dev-user-12345';
+  return (event.headers && event.headers['x-user-id']) || '';
 }
 
 function jsonResponse(statusCode: number, body: any): APIGatewayProxyResultV2 {
@@ -20,7 +18,7 @@ function jsonResponse(statusCode: number, body: any): APIGatewayProxyResultV2 {
     headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+      'Access-Control-Allow-Headers': 'Content-Type,Authorization,x-user-id',
       'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS',
     },
     body: JSON.stringify(body),
@@ -30,19 +28,22 @@ function jsonResponse(statusCode: number, body: any): APIGatewayProxyResultV2 {
 export async function handler(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> {
   const method = event.requestContext.http.method.toUpperCase();
   const userId = getUserId(event);
+
+  if (!userId) {
+    return jsonResponse(401, { success: false, error: 'Unauthorized: missing user claim' });
+  }
+
   const pathParameters = event.pathParameters || {};
   const seriesId = pathParameters.seriesId;
 
   try {
-    // GET /user-series-status - List all series status for current user
-    if (method === 'GET' && !seriesId) {
-      const statuses = await getAllUserSeriesStatuses(userId);
-      return jsonResponse(200, { success: true, statuses });
+    if (method === 'OPTIONS') {
+      return jsonResponse(200, { success: true });
     }
 
-    // GET /user-series-status/{seriesId} - Get series status for specific series
+    // GET /user-series-status/{seriesId}
     if (method === 'GET' && seriesId) {
-      const status = await getUserSeriesStatus(userId, seriesId);
+      const status = await getUserSeriesStatusDb(userId, seriesId);
       return jsonResponse(200, {
         success: true,
         status: status || {
@@ -55,7 +56,7 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<APIGateway
       });
     }
 
-    // POST or PUT /user-series-status - Update or create status
+    // POST or PUT /user-series-status
     if (method === 'POST' || method === 'PUT') {
       const body = JSON.parse(event.body || '{}');
       const targetSeriesId = seriesId || body.seriesId;
@@ -64,23 +65,11 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<APIGateway
         return jsonResponse(400, { success: false, error: 'seriesId is required' });
       }
 
-      const existing = (await getUserSeriesStatus(userId, targetSeriesId)) || {
-        id: `${userId}_${targetSeriesId}`,
-        userId,
-        seriesId: targetSeriesId,
-        isCompleted: false,
-        ignoredVolumes: [],
-      };
+      const isCompleted = body.isCompleted === true;
+      const ignoredVolumes = Array.isArray(body.ignoredVolumes) ? body.ignoredVolumes : [];
 
-      const updatedStatus: UserSeriesStatus = {
-        ...existing,
-        ...body,
-        userId,
-        seriesId: targetSeriesId,
-      };
-
-      await putUserSeriesStatus(updatedStatus);
-      return jsonResponse(200, { success: true, status: updatedStatus });
+      const status = await saveUserSeriesStatusDb(userId, targetSeriesId, isCompleted, ignoredVolumes);
+      return jsonResponse(200, { success: true, status });
     }
 
     return jsonResponse(405, { success: false, error: 'Method Not Allowed' });

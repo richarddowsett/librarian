@@ -1,86 +1,69 @@
 # ------------------------------------------------------------------------------
-# AWS DynamoDB Databases
+# Database Infrastructure: Amazon RDS Aurora Serverless v2 PostgreSQL
 # ------------------------------------------------------------------------------
 
-# 1. Books Table (User Isolation via ownerId as Partition Key)
-resource "aws_dynamodb_table" "books" {
-  name         = "${local.name_prefix}-books"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "ownerId"
-  range_key    = "id"
+resource "random_password" "db_password" {
+  length  = 16
+  special = false
+}
 
-  attribute {
-    name = "ownerId"
-    type = "S"
+resource "aws_secretsmanager_secret" "aurora_db_credentials" {
+  name        = "${local.name_prefix}-aurora-db-credentials"
+  description = "Aurora Serverless v2 PostgreSQL connection credentials for Librarian App"
+}
+
+resource "aws_secretsmanager_secret_version" "aurora_db_credentials" {
+  secret_id = aws_secretsmanager_secret.aurora_db_credentials.id
+  secret_string = jsonencode({
+    engine   = "postgres"
+    host     = aws_rds_cluster.aurora_postgres.endpoint
+    port     = aws_rds_cluster.aurora_postgres.port
+    dbname   = aws_rds_cluster.aurora_postgres.database_name
+    username = aws_rds_cluster.aurora_postgres.master_username
+    password = random_password.db_password.result
+  })
+}
+
+resource "aws_security_group" "aurora_sg" {
+  name        = "${local.name_prefix}-aurora-sg"
+  description = "Security Group for Aurora Serverless v2 PostgreSQL"
+
+  ingress {
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
-  attribute {
-    name = "id"
-    type = "S"
-  }
-
-  attribute {
-    name = "isbn"
-    type = "S"
-  }
-
-  global_secondary_index {
-    name            = "isbn-index"
-    hash_key        = "isbn"
-    projection_type = "ALL"
-  }
-
-  point_in_time_recovery {
-    enabled = true
-  }
-
-  server_side_encryption {
-    enabled = true
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
-# 2. Series Metadata Table (Shared Read-Only Reference Data)
-resource "aws_dynamodb_table" "series" {
-  name         = "${local.name_prefix}-series"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "id"
+resource "aws_rds_cluster" "aurora_postgres" {
+  cluster_identifier      = "${local.name_prefix}-aurora-cluster"
+  engine                  = "aurora-postgresql"
+  engine_mode             = "provisioned"
+  engine_version          = "16.1"
+  database_name           = "librarian"
+  master_username         = "librarian_admin"
+  master_password         = random_password.db_password.result
+  vpc_security_group_ids = [aws_security_group.aurora_sg.id]
+  skip_final_snapshot     = true
 
-  attribute {
-    name = "id"
-    type = "S"
-  }
-
-  point_in_time_recovery {
-    enabled = true
-  }
-
-  server_side_encryption {
-    enabled = true
+  serverlessv2_scaling_configuration {
+    min_capacity = 0.5
+    max_capacity = 2.0
   }
 }
 
-# 3. User Series Status Table (User Isolation via userId as Partition Key)
-resource "aws_dynamodb_table" "user_series_status" {
-  name         = "${local.name_prefix}-user-series-status"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "userId"
-  range_key    = "seriesId"
-
-  attribute {
-    name = "userId"
-    type = "S"
-  }
-
-  attribute {
-    name = "seriesId"
-    type = "S"
-  }
-
-  point_in_time_recovery {
-    enabled = true
-  }
-
-  server_side_encryption {
-    enabled = true
-  }
+resource "aws_rds_cluster_instance" "aurora_postgres_instance" {
+  cluster_identifier = aws_rds_cluster.aurora_postgres.id
+  identifier         = "${local.name_prefix}-aurora-instance-1"
+  instance_class      = "db.serverless"
+  engine              = aws_rds_cluster.aurora_postgres.engine
+  engine_version      = aws_rds_cluster.aurora_postgres.engine_version
 }

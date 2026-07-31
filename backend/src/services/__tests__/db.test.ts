@@ -1,153 +1,143 @@
-import { Book, SeriesDetails } from '../../types';
 import {
-  addBook,
-  addSeries,
-  deleteBook,
-  getAllSeries,
-  getBookById,
-  getBooks,
-  getSeries,
-  getUserAllSeriesStatus,
-  getUserSeriesStatus,
-  isOfflineMode,
-  resetMockDatabase,
-  setDevOrOfflineMode,
-  updateBook,
-  updateSeries,
-  updateUserSeriesStatus,
+  getBooksByUser,
+  addBookForUser,
+  updateUserBook,
+  deleteUserBook,
+  getUserSeriesStatusDb,
+  saveUserSeriesStatusDb,
+  setDbPoolForTesting,
 } from '../db';
 
-describe('Database and Firestore Service (Local Mock & Offline Fallback)', () => {
+describe('PostgreSQL Database Service', () => {
+  let mockQuery: jest.Mock;
+  let mockPool: any;
+
   beforeEach(() => {
-    resetMockDatabase();
-    setDevOrOfflineMode(true);
+    mockQuery = jest.fn();
+    mockPool = {
+      query: mockQuery,
+    };
+    setDbPoolForTesting(mockPool);
   });
 
-  describe('Offline Mode Config', () => {
-    it('defaults to offline/dev mock mode when no active Firestore instance', () => {
-      expect(isOfflineMode()).toBe(true);
-    });
+  afterEach(() => {
+    setDbPoolForTesting(null);
   });
 
-  describe('Book CRUD Operations', () => {
-    it('adds and retrieves books for a user', async () => {
-      const bookData: Omit<Book, 'id' | 'dateAdded'> = {
-        ownerId: 'user_123',
+  describe('getBooksByUser', () => {
+    it('queries user_books joined with books for a specific user ID', async () => {
+      const mockRow = {
+        id: 'ub-123',
+        user_id: 'user-abc',
         isbn: '9780545010221',
-        title: 'Harry Potter 7',
+        title: 'Harry Potter',
+        subtitle: null,
         authors: ['J.K. Rowling'],
-        coverUrl: 'https://covers.openlibrary.org/b/isbn/9780545010221-L.jpg',
+        cover_url: 'https://example.com/cover.jpg',
         publisher: 'Scholastic',
-        publishDate: '2007',
-        pageCount: 759,
-        readStatus: 'read',
+        publish_date: '2007',
+        page_count: 759,
+        description: 'Magic story',
+        categories: ['Fantasy'],
+        language: 'en',
+        work_key: 'OL123W',
+        read_status: 'read',
+        rating: '5',
+        review: 'Great book!',
+        series_id: 'hp',
+        series_name: 'Harry Potter',
+        series_volume_number: '7',
+        date_added: new Date('2026-07-31T00:00:00Z'),
+        date_read: new Date('2026-07-31T00:00:00Z'),
       };
 
-      const added = await addBook(bookData);
-      expect(added.id).toBeDefined();
-      expect(added.dateAdded).toBeDefined();
-      expect(added.title).toBe('Harry Potter 7');
+      mockQuery.mockResolvedValueOnce({ rows: [mockRow] });
 
-      const userBooks = await getBooks('user_123');
-      expect(userBooks).toHaveLength(1);
-      expect(userBooks[0].id).toBe(added.id);
+      const books = await getBooksByUser('user-abc');
 
-      const fetchedById = await getBookById(added.id);
-      expect(fetchedById).toEqual(added);
-    });
-
-    it('updates existing book metadata', async () => {
-      const added = await addBook({
-        ownerId: 'user_123',
-        isbn: '9780545010221',
-        title: 'Draft Title',
-        authors: ['Author'],
-        coverUrl: null,
-        publisher: 'Pub',
-        publishDate: '2020',
-        pageCount: 100,
-        readStatus: 'unread',
-      });
-
-      const updated = await updateBook(added.id, {
-        readStatus: 'read',
-        rating: 5,
-        review: 'Masterpiece!',
-      });
-
-      expect(updated).not.toBeNull();
-      expect(updated?.readStatus).toBe('read');
-      expect(updated?.rating).toBe(5);
-      expect(updated?.review).toBe('Masterpiece!');
-
-      const fetched = await getBookById(added.id);
-      expect(fetched?.readStatus).toBe('read');
-    });
-
-    it('deletes a book', async () => {
-      const added = await addBook({
-        ownerId: 'user_123',
-        isbn: '9780545010221',
-        title: 'ToDelete',
-        authors: ['Author'],
-        coverUrl: null,
-        publisher: 'Pub',
-        publishDate: '2020',
-        pageCount: 100,
-        readStatus: 'unread',
-      });
-
-      const deleteResult = await deleteBook(added.id);
-      expect(deleteResult).toBe(true);
-
-      const fetched = await getBookById(added.id);
-      expect(fetched).toBeNull();
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('FROM user_books ub'),
+        ['user-abc']
+      );
+      expect(books).toHaveLength(1);
+      expect(books[0].title).toBe('Harry Potter');
+      expect(books[0].ownerId).toBe('user-abc');
+      expect(books[0].rating).toBe(5);
     });
   });
 
-  describe('Series CRUD Operations', () => {
-    it('creates, reads, and updates series details', async () => {
-      const seriesData: Omit<SeriesDetails, 'id'> = {
-        name: 'The Lord of the Rings',
-        openLibraryWorkId: 'OL27479W',
-        volumes: [
-          { volumeNumber: 1, title: 'The Fellowship of the Ring' },
-          { volumeNumber: 2, title: 'The Two Towers' },
-          { volumeNumber: 3, title: 'The Return of the King' },
+  describe('addBookForUser', () => {
+    it('deduplicates existing ISBN in internal books table before creating user_books link', async () => {
+      // 1. SELECT id FROM books WHERE isbn = $1
+      mockQuery.mockResolvedValueOnce({ rows: [{ id: 'existing-book-uuid-999' }] });
+      // 2. INSERT INTO user_books
+      mockQuery.mockResolvedValueOnce({ rows: [{ id: 'ub-new-123' }] });
+      // 3. SELECT full joined row
+      mockQuery.mockResolvedValueOnce({
+        rows: [
+          {
+            id: 'ub-new-123',
+            user_id: 'user-abc',
+            isbn: '9780545010221',
+            title: 'Harry Potter',
+            authors: ['J.K. Rowling'],
+            read_status: 'unread',
+          },
         ],
-        totalVolumes: 3,
-      };
+      });
 
-      const added = await addSeries(seriesData);
-      expect(added.id).toBe('series_OL27479W');
+      const result = await addBookForUser('user-abc', {
+        isbn: '9780545010221',
+        title: 'Harry Potter',
+        authors: ['J.K. Rowling'],
+      });
 
-      const fetched = await getSeries(added.id);
-      expect(fetched).toEqual(added);
-
-      const all = await getAllSeries();
-      expect(all).toHaveLength(1);
-
-      const updated = await updateSeries(added.id, { name: 'LOTR Trilogy' });
-      expect(updated?.name).toBe('LOTR Trilogy');
+      expect(mockQuery).toHaveBeenNthCalledWith(
+        1,
+        `SELECT id FROM books WHERE isbn = $1`,
+        ['9780545010221']
+      );
+      expect(result.id).toBe('ub-new-123');
     });
   });
 
-  describe('User Series Status CRUD Operations', () => {
-    it('updates and retrieves user series status', async () => {
-      const status = await updateUserSeriesStatus('user_123', 'series_LOTR', {
-        isCompleted: false,
-        ignoredVolumes: ['3'],
+  describe('deleteUserBook', () => {
+    it('deletes from user_books matching user_id and user_book_id', async () => {
+      mockQuery.mockResolvedValueOnce({ rowCount: 1 });
+
+      const success = await deleteUserBook('user-abc', 'ub-123');
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        `DELETE FROM user_books WHERE id = $1 AND user_id = $2;`,
+        ['ub-123', 'user-abc']
+      );
+      expect(success).toBe(true);
+    });
+  });
+
+  describe('getUserSeriesStatusDb', () => {
+    it('queries user_series_status table', async () => {
+      mockQuery.mockResolvedValueOnce({
+        rows: [
+          {
+            id: 'uss-1',
+            user_id: 'user-abc',
+            series_id: 'series-hp',
+            is_completed: true,
+            ignored_volumes: ['8'],
+          },
+        ],
       });
 
-      expect(status.userId).toBe('user_123');
-      expect(status.seriesId).toBe('series_LOTR');
-      expect(status.ignoredVolumes).toEqual(['3']);
+      const status = await getUserSeriesStatusDb('user-abc', 'series-hp');
 
-      const fetched = await getUserSeriesStatus('user_123', 'series_LOTR');
-      expect(fetched).toEqual(status);
-
-      const userAll = await getUserAllSeriesStatus('user_123');
-      expect(userAll).toHaveLength(1);
+      expect(status).toEqual({
+        id: 'uss-1',
+        userId: 'user-abc',
+        seriesId: 'series-hp',
+        isCompleted: true,
+        ignoredVolumes: ['8'],
+      });
     });
   });
 });
