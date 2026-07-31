@@ -1,0 +1,37 @@
+name: 'Setup & Lint Action'
+description: 'Composite action that prepares environment and executes linters'
+author: 'Development Team'
+
+inputs:
+  python-version:
+    description: 'Python version to setup'
+    required: false
+    default: '3.11'
+  lint-args:
+    description: 'Extra parameters passed to linters'
+    required: false
+    default: '--quiet'
+
+outputs:
+  lint-result:
+    description: 'Result string from lint check'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout Code
+      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.7
+
+    - name: Setup Python
+      uses: actions/setup-python@82c7e631bb3cede910b9152125f9227243c45e97 # v5.1.0
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Run Linter
+      shell: bash
+      env:
+        ARGS: ${{ inputs.lint-args }}
+      run: |
+        echo "Executing linting with flags: $ARGS"
+        python3 -m pip install --upgrade pip
+        echo "lint-result=success" >> $GITHUB_OUTPUT

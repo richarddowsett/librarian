@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "github-actions": {
+      "source": "richarddowsett/github-actions-skill",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "519252ea280b063209708b8c5b31e65d8643e77294e56c75052e086422294132"
+    },
     "product-owner": {
       "source": "richarddowsett/product-owner-skill",
       "sourceType": "github",

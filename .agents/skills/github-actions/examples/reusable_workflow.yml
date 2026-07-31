@@ -1,0 +1,37 @@
+name: Reusable Security Scan Workflow
+
+on:
+  workflow_call:
+    inputs:
+      scan-depth:
+        description: 'Code vulnerability scan depth'
+        required: false
+        type: string
+        default: 'shallow'
+    outputs:
+      scan-status:
+        description: 'Status result of security scan'
+        value: ${{ jobs.security-scan.outputs.status }}
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.set-status.outputs.status }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.7
+
+      - name: Run Scan Logic
+        env:
+          DEPTH: ${{ inputs.scan-depth }}
+        run: |
+          echo "Executing security scan with depth: $DEPTH"
+
+      - name: Set output status
+        id: set-status
+        run: echo "status=completed" >> $GITHUB_OUTPUT
