@@ -1,12 +1,23 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, Image, TouchableOpacity } from 'react-native';
 import { useLibrary } from '../../src/context/LibraryContext';
+import { Book } from '../../src/schemas/book';
 import { Ionicons } from '@expo/vector-icons';
+import { BookDetailModal } from '../../src/components/BookDetailModal';
+import { UnownedBookModal } from '../../src/components/UnownedBookModal';
 
 export default function SeriesTrackerScreen() {
   const { seriesOverviews, authorOverviews } = useLibrary();
   const [activeTab, setActiveTab] = useState<'series' | 'authors'>('series');
   const [showUnowned, setShowUnowned] = useState<boolean>(true);
+  const [selectedOwnedBook, setSelectedOwnedBook] = useState<Book | null>(null);
+  const [selectedUnownedBook, setSelectedUnownedBook] = useState<{
+    title: string;
+    authorName?: string;
+    seriesName?: string;
+    seriesVolumeNumber?: number;
+    coverUrl?: string;
+  } | null>(null);
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: '#0f172a' }} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
@@ -274,8 +285,20 @@ export default function SeriesTrackerScreen() {
                         const book = volItem.book;
 
                         return (
-                          <View
+                          <TouchableOpacity
                             key={`vol-${volItem.volumeNumber}`}
+                            activeOpacity={0.7}
+                            onPress={() => {
+                              if (isOwned && book) {
+                                setSelectedOwnedBook(book);
+                              } else {
+                                setSelectedUnownedBook({
+                                  title: volItem.title,
+                                  seriesName: overview.seriesName,
+                                  seriesVolumeNumber: volItem.volumeNumber,
+                                });
+                              }
+                            }}
                             style={{
                               width: 105,
                               backgroundColor: '#0f172a',
@@ -344,7 +367,7 @@ export default function SeriesTrackerScreen() {
                             >
                               {isOwned && book ? book.title : `Vol #${volItem.volumeNumber}`}
                             </Text>
-                          </View>
+                          </TouchableOpacity>
                         );
                       })}
                     </View>
@@ -485,8 +508,22 @@ export default function SeriesTrackerScreen() {
                             : 'Missing';
 
                         return (
-                          <View
+                          <TouchableOpacity
                             key={item.id}
+                            activeOpacity={0.7}
+                            onPress={() => {
+                              if (isOwned && book) {
+                                setSelectedOwnedBook(book);
+                              } else {
+                                setSelectedUnownedBook({
+                                  title: item.title,
+                                  authorName: authorData.authorName,
+                                  seriesName: item.seriesName,
+                                  seriesVolumeNumber: item.seriesVolumeNumber,
+                                  coverUrl: item.coverUrl,
+                                });
+                              }
+                            }}
                             style={{
                               width: 110,
                               backgroundColor: '#0f172a',
@@ -567,7 +604,7 @@ export default function SeriesTrackerScreen() {
                                 {item.seriesName}
                               </Text>
                             ) : null}
-                          </View>
+                          </TouchableOpacity>
                         );
                       })}
                     </View>
@@ -606,6 +643,24 @@ export default function SeriesTrackerScreen() {
           </View>
         )
       )}
+
+      {/* Owned Book Details Modal */}
+      <BookDetailModal
+        book={selectedOwnedBook}
+        visible={!!selectedOwnedBook}
+        onClose={() => setSelectedOwnedBook(null)}
+      />
+
+      {/* Unowned Book Details & Blurb Modal */}
+      <UnownedBookModal
+        visible={!!selectedUnownedBook}
+        onClose={() => setSelectedUnownedBook(null)}
+        title={selectedUnownedBook?.title || ''}
+        authorName={selectedUnownedBook?.authorName}
+        seriesName={selectedUnownedBook?.seriesName}
+        seriesVolumeNumber={selectedUnownedBook?.seriesVolumeNumber}
+        initialCoverUrl={selectedUnownedBook?.coverUrl}
+      />
     </ScrollView>
   );
 }

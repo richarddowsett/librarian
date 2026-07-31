@@ -154,3 +154,109 @@ export async function fetchSeriesCatalog(seriesName: string): Promise<CatalogBoo
 
   return [];
 }
+
+export interface CatalogBookDetails {
+  title: string;
+  authors: string[];
+  description?: string;
+  publishDate?: string;
+  pageCount?: number;
+  publisher?: string;
+  coverUrl?: string;
+  isbn?: string;
+  seriesName?: string;
+  seriesVolumeNumber?: number;
+}
+
+const detailsCache = new Map<string, CatalogBookDetails>();
+
+/**
+ * Fetches comprehensive metadata (publish date, blurb/synopsis, page count length, cover) for an unowned book.
+ */
+export async function fetchUnownedBookDetails(
+  title: string,
+  authorName?: string
+): Promise<CatalogBookDetails> {
+  const cacheKey = `${title.toLowerCase()}_${(authorName || '').toLowerCase()}`;
+  if (detailsCache.has(cacheKey)) {
+    return detailsCache.get(cacheKey)!;
+  }
+
+  // 1. Try Google Books API first for rich blurb, page count, and published date
+  try {
+    const query = `intitle:${encodeURIComponent(title)}${authorName ? `+inauthor:${encodeURIComponent(authorName)}` : ''}`;
+    const googleUrl = `https://www.googleapis.com/books/v1/volumes?q=${query}&maxResults=1`;
+    const res = await fetch(googleUrl);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.items && data.items.length > 0) {
+        const volumeInfo = data.items[0].volumeInfo || {};
+        const description = volumeInfo.description
+          ? volumeInfo.description.replace(/<[^>]*>?/gm, '') // Strip HTML tags
+          : undefined;
+
+        const coverUrl =
+          volumeInfo.imageLinks?.extraLarge ||
+          volumeInfo.imageLinks?.large ||
+          volumeInfo.imageLinks?.medium ||
+          volumeInfo.imageLinks?.thumbnail;
+
+        const isbnObj = Array.isArray(volumeInfo.industryIdentifiers)
+          ? volumeInfo.industryIdentifiers.find((i: any) => i.type === 'ISBN_13' || i.type === 'ISBN_10')
+          : undefined;
+
+        const result: CatalogBookDetails = {
+          title: volumeInfo.title || title,
+          authors: volumeInfo.authors || (authorName ? [authorName] : ['Unknown Author']),
+          description,
+          publishDate: volumeInfo.publishedDate,
+          pageCount: volumeInfo.pageCount,
+          publisher: volumeInfo.publisher,
+          coverUrl: coverUrl ? coverUrl.replace(/^http:/, 'https:') : undefined,
+          isbn: isbnObj?.identifier,
+        };
+
+        detailsCache.set(cacheKey, result);
+        return result;
+      }
+    }
+  } catch (err) {
+    console.warn('Error fetching Google Books detail:', err);
+  }
+
+  // 2. Fallback to Open Library Search API
+  try {
+    const openUrl = `https://openlibrary.org/search.json?q=${encodeURIComponent(title)}${authorName ? `&author=${encodeURIComponent(authorName)}` : ''}&limit=1`;
+    const res = await fetch(openUrl);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.docs && data.docs.length > 0) {
+        const doc = data.docs[0];
+        const coverId = doc.cover_i;
+        const coverUrl = coverId ? `https://covers.openlibrary.org/b/id/${coverId}-L.jpg` : undefined;
+
+        const result: CatalogBookDetails = {
+          title: doc.title || title,
+          authors: doc.author_name || (authorName ? [authorName] : ['Unknown Author']),
+          publishDate: doc.first_publish_year ? String(doc.first_publish_year) : doc.publish_date ? doc.publish_date[0] : undefined,
+          pageCount: doc.number_of_pages_median || undefined,
+          publisher: Array.isArray(doc.publisher) ? doc.publisher[0] : undefined,
+          coverUrl,
+          isbn: Array.isArray(doc.isbn) ? doc.isbn[0] : undefined,
+        };
+
+        detailsCache.set(cacheKey, result);
+        return result;
+      }
+    }
+  } catch (err) {
+    console.warn('Error fetching Open Library detail:', err);
+  }
+
+  const fallback: CatalogBookDetails = {
+    title,
+    authors: authorName ? [authorName] : ['Unknown Author'],
+  };
+  detailsCache.set(cacheKey, fallback);
+  return fallback;
+}
