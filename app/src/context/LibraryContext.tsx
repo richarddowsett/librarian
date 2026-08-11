@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useMemo, useEffect } from '
 import { Book, CreateBookInput, UpdateBookReviewInput, bookSchema } from '../schemas/book';
 import { useAuth } from './AuthContext';
 import { fetchBooksApi, addBookApi, updateBookApi, deleteBookApi } from '../services/apiClient';
-import { fetchAuthorCatalog, fetchSeriesCatalog, CatalogBook } from '../services/catalogService';
+import { fetchAuthorCatalog, fetchSeriesCatalog, CatalogBook, isEnglishCatalogBook } from '../services/catalogService';
 
 export interface SeriesVolumeItem {
   volumeNumber: number;
@@ -304,6 +304,9 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         );
 
         externalCatalog.forEach((catItem, idx) => {
+          if (!isEnglishCatalogBook(catItem)) {
+            return;
+          }
           const cleanTitle = catItem.title.trim().toLowerCase();
           if (!existingTitles.has(cleanTitle)) {
             existingTitles.add(cleanTitle);

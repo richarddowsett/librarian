@@ -95,4 +95,48 @@ describe('Google Books API Service', () => {
       expect(result).toBeNull();
     });
   });
+
+  describe('isEnglishBookMetadata & fetchAuthorCatalogFromGoogle', () => {
+    it('filters out non-English languages and non-Latin script titles', async () => {
+      const mockApiResponse = {
+        items: [
+          {
+            volumeInfo: {
+              title: 'The Shining',
+              authors: ['Stephen King'],
+              language: 'en',
+            },
+          },
+          {
+            volumeInfo: {
+              title: 'Shining (Spanish Edition)',
+              authors: ['Stephen King'],
+              language: 'es',
+            },
+          },
+          {
+            volumeInfo: {
+              title: 'Сияние',
+              authors: ['Стивен Кинг'],
+              language: 'en',
+            },
+          },
+        ],
+      };
+
+      const mockFetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => mockApiResponse,
+      } as Response);
+
+      const catalog = await (require('../googleBooks').fetchAuthorCatalogFromGoogle)('Stephen King', mockFetch as any);
+
+      expect(catalog).toHaveLength(1);
+      expect(catalog[0].title).toBe('The Shining');
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('langRestrict=en'),
+        expect.anything()
+      );
+    });
+  });
 });

@@ -127,6 +127,24 @@ export async function fetchBookByISBN(
 }
 
 /**
+/**
+ * Helper to check if a book item is in English language and contains standard Latin script titles.
+ */
+export function isEnglishBookMetadata(volumeInfo: any): boolean {
+  if (!volumeInfo) return false;
+  const lang = (volumeInfo.language || '').trim().toLowerCase();
+  if (lang && !lang.startsWith('en')) {
+    return false;
+  }
+  const title = volumeInfo.title || '';
+  // Check for non-Latin scripts (Cyrillic, CJK, Arabic, Hebrew, Greek)
+  if (/[\u0400-\u04FF\u3000-\u303F\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\uAC00-\uD7AF\u0600-\u06FF\u0590-\u05FF\u0370-\u03FF]/.test(title)) {
+    return false;
+  }
+  return true;
+}
+
+/**
  * Fetches author bibliography catalog items from Google Books API.
  */
 export async function fetchAuthorCatalogFromGoogle(
@@ -139,7 +157,7 @@ export async function fetchAuthorCatalogFromGoogle(
   try {
     const apiKey = await getGoogleBooksApiKey();
     const keyParam = apiKey ? `&key=${apiKey}` : '';
-    const url = `https://www.googleapis.com/books/v1/volumes?q=inauthor:${encodeURIComponent(cleanAuthor)}&maxResults=40${keyParam}`;
+    const url = `https://www.googleapis.com/books/v1/volumes?q=inauthor:${encodeURIComponent(cleanAuthor)}&langRestrict=en&maxResults=40${keyParam}`;
 
     const response = await fetchFn(url, { headers: { 'Accept': 'application/json' } });
     if (!response.ok) return [];
@@ -151,6 +169,10 @@ export async function fetchAuthorCatalogFromGoogle(
 
     items.forEach((item) => {
       const info = item.volumeInfo || {};
+      if (!isEnglishBookMetadata(info)) {
+        return;
+      }
+
       const title: string = info.title || '';
       const cleanTitle = title.trim().toLowerCase();
 
@@ -175,6 +197,7 @@ export async function fetchAuthorCatalogFromGoogle(
           pageCount: info.pageCount,
           description: info.description ? info.description.replace(/<[^>]*>?/gm, '') : undefined,
           categories: info.categories,
+          language: info.language || 'en',
           isbn: isbnObj?.identifier,
         });
       }
@@ -202,7 +225,7 @@ export async function fetchSeriesCatalogFromGoogle(
   try {
     const apiKey = await getGoogleBooksApiKey();
     const keyParam = apiKey ? `&key=${apiKey}` : '';
-    const url = `https://www.googleapis.com/books/v1/volumes?q=intitle:${encodeURIComponent(cleanSeries)}&maxResults=40${keyParam}`;
+    const url = `https://www.googleapis.com/books/v1/volumes?q=intitle:${encodeURIComponent(cleanSeries)}&langRestrict=en&maxResults=40${keyParam}`;
 
     const response = await fetchFn(url, { headers: { 'Accept': 'application/json' } });
     if (!response.ok) return [];
@@ -214,6 +237,10 @@ export async function fetchSeriesCatalogFromGoogle(
 
     items.forEach((item) => {
       const info = item.volumeInfo || {};
+      if (!isEnglishBookMetadata(info)) {
+        return;
+      }
+
       const title: string = info.title || '';
       const cleanTitle = title.trim().toLowerCase();
 
@@ -231,6 +258,7 @@ export async function fetchSeriesCatalogFromGoogle(
           publishDate: info.publishedDate,
           pageCount: info.pageCount,
           description: info.description ? info.description.replace(/<[^>]*>?/gm, '') : undefined,
+          language: info.language || 'en',
         });
       }
     });

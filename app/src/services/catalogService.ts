@@ -10,6 +10,20 @@ export interface CatalogBook {
   publisher?: string;
   publishDate?: string;
   pageCount?: number;
+  language?: string;
+}
+
+export function isEnglishCatalogBook(book: { title?: string; language?: string }): boolean {
+  if (book.language) {
+    const lang = book.language.trim().toLowerCase();
+    if (lang && !lang.startsWith('en')) {
+      return false;
+    }
+  }
+  if (book.title && /[\u0400-\u04FF\u3000-\u303F\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\uAC00-\uD7AF\u0600-\u06FF\u0590-\u05FF\u0370-\u03FF]/.test(book.title)) {
+    return false;
+  }
+  return true;
 }
 
 export function extractVolumeNumber(title: string): number | null {
@@ -49,17 +63,20 @@ export async function fetchAuthorCatalog(authorName: string): Promise<CatalogBoo
     // 1. Query backend Google Books Proxy service
     const remoteCatalog = await fetchAuthorCatalogApi(cleanAuthor);
     if (Array.isArray(remoteCatalog) && remoteCatalog.length > 0) {
-      const formatted: CatalogBook[] = remoteCatalog.map((item) => ({
-        title: item.title,
-        coverUrl: item.coverUrl,
-        isbn: item.isbn,
-        description: item.description,
-        categories: item.categories,
-        publisher: item.publisher,
-        publishDate: item.publishDate,
-        pageCount: item.pageCount,
-        seriesVolumeNumber: extractVolumeNumber(item.title) || undefined,
-      }));
+      const formatted: CatalogBook[] = remoteCatalog
+        .filter((item) => isEnglishCatalogBook({ title: item.title, language: item.language }))
+        .map((item) => ({
+          title: item.title,
+          coverUrl: item.coverUrl,
+          isbn: item.isbn,
+          description: item.description,
+          categories: item.categories,
+          publisher: item.publisher,
+          publishDate: item.publishDate,
+          pageCount: item.pageCount,
+          language: item.language,
+          seriesVolumeNumber: extractVolumeNumber(item.title) || undefined,
+        }));
 
       authorCache.set(cleanAuthor, formatted);
       return formatted;
@@ -70,7 +87,7 @@ export async function fetchAuthorCatalog(authorName: string): Promise<CatalogBoo
 
   // 2. Direct Fallback to Google Books Public Search API if backend call unavailable
   try {
-    const googleBooksUrl = `https://www.googleapis.com/books/v1/volumes?q=inauthor:${encodeURIComponent(cleanAuthor)}&maxResults=30`;
+    const googleBooksUrl = `https://www.googleapis.com/books/v1/volumes?q=inauthor:${encodeURIComponent(cleanAuthor)}&langRestrict=en&maxResults=30`;
     const res = await fetch(googleBooksUrl);
     if (res.ok) {
       const data = await res.json();
@@ -81,6 +98,10 @@ export async function fetchAuthorCatalog(authorName: string): Promise<CatalogBoo
       items.forEach((item) => {
         const info = item.volumeInfo || {};
         const title: string = info.title || '';
+        if (!isEnglishCatalogBook({ title: info.title, language: info.language })) {
+          return;
+        }
+
         const cleanTitle = title.trim().toLowerCase();
         if (cleanTitle && !seenTitles.has(cleanTitle)) {
           seenTitles.add(cleanTitle);
@@ -98,6 +119,7 @@ export async function fetchAuthorCatalog(authorName: string): Promise<CatalogBoo
             publisher: info.publisher,
             publishDate: info.publishedDate,
             pageCount: info.pageCount,
+            language: info.language || 'en',
             seriesVolumeNumber: extractVolumeNumber(info.title) || undefined,
           });
         }
@@ -154,7 +176,7 @@ export async function fetchSeriesCatalog(seriesName: string): Promise<CatalogBoo
 
   // Fallback to Google Books Public Search
   try {
-    const googleBooksUrl = `https://www.googleapis.com/books/v1/volumes?q=intitle:${encodeURIComponent(cleanSeries)}&maxResults=30`;
+    const googleBooksUrl = `https://www.googleapis.com/books/v1/volumes?q=intitle:${encodeURIComponent(cleanSeries)}&langRestrict=en&maxResults=30`;
     const res = await fetch(googleBooksUrl);
     if (res.ok) {
       const data = await res.json();
@@ -164,6 +186,10 @@ export async function fetchSeriesCatalog(seriesName: string): Promise<CatalogBoo
       items.forEach((item) => {
         const info = item.volumeInfo || {};
         const title: string = info.title || '';
+        if (!isEnglishCatalogBook({ title: info.title, language: info.language })) {
+          return;
+        }
+
         const volNum = extractVolumeNumber(title) || null;
         if (volNum && volNum > 0 && !volumeMap.has(volNum)) {
           const coverUrl = info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail;
@@ -172,6 +198,7 @@ export async function fetchSeriesCatalog(seriesName: string): Promise<CatalogBoo
             coverUrl: coverUrl ? coverUrl.replace(/^http:/, 'https:') : undefined,
             seriesVolumeNumber: volNum,
             description: info.description ? info.description.replace(/<[^>]*>?/gm, '') : undefined,
+            language: info.language || 'en',
           });
         }
       });
