@@ -95,11 +95,12 @@ export const BookCard: React.FC<BookCardProps> = ({ book, onPress, style }) => {
             borderRadius: 12,
             flexDirection: 'row',
             alignItems: 'center',
+            justifyContent: 'center',
             gap: 4,
           }}
         >
           <Ionicons name={status.icon} size={12} color={status.text} />
-          <Text style={{ color: status.text, fontSize: 11, fontWeight: '700' }}>{status.label}</Text>
+          <Text style={{ color: status.text, fontSize: 11, fontWeight: '700', includeFontPadding: false }}>{status.label}</Text>
         </View>
 
         {/* 1-Click "Mark as Read" Quick Action Button */}
@@ -116,6 +117,7 @@ export const BookCard: React.FC<BookCardProps> = ({ book, onPress, style }) => {
               borderRadius: 12,
               flexDirection: 'row',
               alignItems: 'center',
+              justifyContent: 'center',
               gap: 5,
               borderWidth: 1,
               borderColor: '#34d399',
@@ -126,7 +128,7 @@ export const BookCard: React.FC<BookCardProps> = ({ book, onPress, style }) => {
             }}
           >
             <Ionicons name="checkmark-circle-sharp" size={14} color="#ffffff" />
-            <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '800' }}>
+            <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '800', includeFontPadding: false }}>
               Mark Read
             </Text>
           </TouchableOpacity>

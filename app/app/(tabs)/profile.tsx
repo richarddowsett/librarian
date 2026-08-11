@@ -120,7 +120,7 @@ export default function ProfileScreen() {
         }}
       >
         <Ionicons name="log-out-outline" size={20} color="#fca5a5" />
-        <Text style={{ color: '#fca5a5', fontSize: 16, fontWeight: '800' }}>Sign Out</Text>
+        <Text style={{ color: '#fca5a5', fontSize: 16, fontWeight: '800', includeFontPadding: false }}>Sign Out</Text>
       </TouchableOpacity>
     </ScrollView>
   );

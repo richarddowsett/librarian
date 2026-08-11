@@ -237,6 +237,8 @@ export const DoIOwnModal: React.FC<DoIOwnModalProps> = ({ visible, onClose }) =>
                 backgroundColor: '#334155',
                 padding: 8,
                 borderRadius: 20,
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
               <Ionicons name="close" size={18} color="#e2e8f0" />
@@ -287,7 +289,7 @@ export const DoIOwnModal: React.FC<DoIOwnModalProps> = ({ visible, onClose }) =>
                       >
                         <View style={{ width: '80%', height: 2, backgroundColor: '#ef4444' }} />
                       </View>
-                      <Text style={{ color: '#ffffff', fontSize: 12, marginTop: 8, fontWeight: '600' }}>
+                      <Text style={{ color: '#ffffff', fontSize: 12, marginTop: 8, fontWeight: '600', includeFontPadding: false }}>
                         Position book barcode inside the target box
                       </Text>
                     </View>
@@ -327,11 +329,11 @@ export const DoIOwnModal: React.FC<DoIOwnModalProps> = ({ visible, onClose }) =>
                       >
                         <View style={{ width: '80%', height: 2, backgroundColor: '#ef4444' }} />
                       </View>
-                      <Text style={{ color: '#ffffff', fontSize: 12, marginTop: 8, fontWeight: '600' }}>
+                      <Text style={{ color: '#ffffff', fontSize: 12, marginTop: 8, fontWeight: '600', includeFontPadding: false }}>
                         Hold book barcode up to your camera
                       </Text>
                       {webCamError && (
-                        <Text style={{ color: '#fca5a5', fontSize: 11, marginTop: 4, textAlign: 'center', paddingHorizontal: 16 }}>
+                        <Text style={{ color: '#fca5a5', fontSize: 11, marginTop: 4, textAlign: 'center', paddingHorizontal: 16, includeFontPadding: false }}>
                           {webCamError}
                         </Text>
                       )}
@@ -351,10 +353,12 @@ export const DoIOwnModal: React.FC<DoIOwnModalProps> = ({ visible, onClose }) =>
                     borderRadius: 12,
                     borderWidth: 1,
                     borderColor: '#475569',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     zIndex: 10,
                   }}
                 >
-                  <Text style={{ color: '#f8fafc', fontSize: 12, fontWeight: '700' }}>Close Camera</Text>
+                  <Text style={{ color: '#f8fafc', fontSize: 12, fontWeight: '700', includeFontPadding: false }}>Close Camera</Text>
                 </TouchableOpacity>
               </View>
             ) : null}
@@ -397,6 +401,7 @@ export const DoIOwnModal: React.FC<DoIOwnModalProps> = ({ visible, onClose }) =>
                   backgroundColor: isCameraScanning ? '#0284c7' : '#0284c7',
                   borderRadius: 16,
                   paddingHorizontal: 14,
+                  paddingVertical: 12,
                   alignItems: 'center',
                   justifyContent: 'center',
                   flexDirection: 'row',
@@ -404,7 +409,7 @@ export const DoIOwnModal: React.FC<DoIOwnModalProps> = ({ visible, onClose }) =>
                 }}
               >
                 <Ionicons name="camera" size={22} color="#ffffff" />
-                <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 13 }}>
+                <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 13, includeFontPadding: false }}>
                   {isCameraScanning ? 'Scanning...' : 'Scan Barcode'}
                 </Text>
               </TouchableOpacity>
@@ -562,6 +567,7 @@ export const DoIOwnModal: React.FC<DoIOwnModalProps> = ({ visible, onClose }) =>
                     style={{
                       backgroundColor: addedBookId ? '#059669' : '#0284c7',
                       paddingVertical: 14,
+                      paddingHorizontal: 16,
                       borderRadius: 14,
                       alignItems: 'center',
                       flexDirection: 'row',
@@ -570,7 +576,7 @@ export const DoIOwnModal: React.FC<DoIOwnModalProps> = ({ visible, onClose }) =>
                     }}
                   >
                     <Ionicons name={addedBookId ? 'checkmark-circle' : 'bag-add-outline'} size={20} color="#ffffff" />
-                    <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 15 }}>
+                    <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 15, includeFontPadding: false }}>
                       {addedBookId ? 'Added to Your Library!' : `I'm Buying It — Add "${query}" to Library`}
                     </Text>
                   </TouchableOpacity>

@@ -546,6 +546,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
               style={{
                 backgroundColor: '#0284c7',
                 paddingHorizontal: 20,
+                paddingVertical: 12,
                 borderRadius: 12,
                 justifyContent: 'center',
                 alignItems: 'center',
@@ -558,14 +559,14 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
               ) : (
                 <>
                   <Ionicons name="search" size={18} color="#ffffff" />
-                  <Text style={{ color: '#ffffff', fontWeight: '700' }}>Search</Text>
+                  <Text style={{ color: '#ffffff', fontWeight: '700', includeFontPadding: false }}>Search</Text>
                 </>
               )}
             </TouchableOpacity>
           </View>
 
           {/* Quick Demo Presets */}
-          <Text style={{ color: '#94a3b8', fontSize: 12, marginBottom: 8, fontWeight: '600' }}>
+          <Text style={{ color: '#94a3b8', fontSize: 12, marginBottom: 8, fontWeight: '600', includeFontPadding: false }}>
             Quick Demo Presets:
           </Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
@@ -583,9 +584,11 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
                   paddingHorizontal: 12,
                   paddingVertical: 6,
                   borderRadius: 16,
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
               >
-                <Text style={{ color: '#38bdf8', fontSize: 12, fontWeight: '600' }}>
+                <Text style={{ color: '#38bdf8', fontSize: 12, fontWeight: '600', includeFontPadding: false }}>
                   {preset.label}
                 </Text>
               </TouchableOpacity>
@@ -605,7 +608,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
               marginBottom: 20,
             }}
           >
-            <Text style={{ color: '#fca5a5', fontSize: 14, fontWeight: '600', marginBottom: 10 }}>
+            <Text style={{ color: '#fca5a5', fontSize: 14, fontWeight: '600', marginBottom: 10, includeFontPadding: false }}>
               {searchError}
             </Text>
             <TouchableOpacity
@@ -616,9 +619,11 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
                 paddingHorizontal: 16,
                 borderRadius: 10,
                 alignSelf: 'flex-start',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
-              <Text style={{ color: '#ffffff', fontWeight: '700', fontSize: 13 }}>
+              <Text style={{ color: '#ffffff', fontWeight: '700', fontSize: 13, includeFontPadding: false }}>
                 Open Manual Book Entry Form
               </Text>
             </TouchableOpacity>
@@ -644,16 +649,16 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Ionicons name="library" size={22} color="#38bdf8" />
-                <Text style={{ color: '#f8fafc', fontSize: 18, fontWeight: '800' }}>
+                <Text style={{ color: '#f8fafc', fontSize: 18, fontWeight: '800', includeFontPadding: false }}>
                   Staged Books Queue ({stagedBooks.length})
                 </Text>
               </View>
 
               <TouchableOpacity
                 onPress={() => setStagedBooks([])}
-                style={{ paddingVertical: 4, paddingHorizontal: 8 }}
+                style={{ paddingVertical: 4, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' }}
               >
-                <Text style={{ color: '#94a3b8', fontSize: 12, fontWeight: '600' }}>Clear Queue</Text>
+                <Text style={{ color: '#94a3b8', fontSize: 12, fontWeight: '600', includeFontPadding: false }}>Clear Queue</Text>
               </TouchableOpacity>
             </View>
 
@@ -692,20 +697,20 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
                   </View>
 
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: '#f8fafc', fontSize: 15, fontWeight: '800' }} numberOfLines={1}>
+                    <Text style={{ color: '#f8fafc', fontSize: 15, fontWeight: '800', includeFontPadding: false }} numberOfLines={1}>
                       {book.title}
                     </Text>
-                    <Text style={{ color: '#94a3b8', fontSize: 13, marginTop: 2 }} numberOfLines={1}>
+                    <Text style={{ color: '#94a3b8', fontSize: 13, marginTop: 2, includeFontPadding: false }} numberOfLines={1}>
                       By {book.authors.join(', ')}
                     </Text>
-                    <Text style={{ color: '#64748b', fontSize: 11, fontFamily: 'monospace', marginTop: 4 }}>
+                    <Text style={{ color: '#64748b', fontSize: 11, fontFamily: 'monospace', marginTop: 4, includeFontPadding: false }}>
                       ISBN: {book.isbn}
                     </Text>
                   </View>
 
                   <TouchableOpacity
                     onPress={() => handleRemoveStagedBook(book.isbn)}
-                    style={{ padding: 8, borderRadius: 8, backgroundColor: 'rgba(239, 68, 68, 0.15)' }}
+                    style={{ padding: 8, borderRadius: 8, backgroundColor: 'rgba(239, 68, 68, 0.15)', alignItems: 'center', justifyContent: 'center' }}
                   >
                     <Ionicons name="trash-outline" size={18} color="#fca5a5" />
                   </TouchableOpacity>
@@ -732,7 +737,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
               ) : (
                 <>
                   <Ionicons name="cloud-upload" size={20} color="#ffffff" />
-                  <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 16 }}>
+                  <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 16, includeFontPadding: false }}>
                     Add All ({stagedBooks.length}) Books to My Library
                   </Text>
                 </>

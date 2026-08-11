@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Image, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, Image, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { useLibrary } from '../../src/context/LibraryContext';
 import { Book } from '../../src/schemas/book';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import { UnownedBookModal } from '../../src/components/UnownedBookModal';
 
 export default function SeriesTrackerScreen() {
   const { seriesOverviews, authorOverviews } = useLibrary();
+  const { width } = useWindowDimensions();
   const [activeTab, setActiveTab] = useState<'series' | 'authors'>('series');
   const [showUnowned, setShowUnowned] = useState<boolean>(true);
   const [selectedOwnedBook, setSelectedOwnedBook] = useState<Book | null>(null);
@@ -19,14 +20,16 @@ export default function SeriesTrackerScreen() {
     coverUrl?: string;
   } | null>(null);
 
+  const isSmallScreen = width < 420;
+
   return (
     <ScrollView style={{ flex: 1, backgroundColor: '#0f172a' }} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
       {/* Title Header */}
       <View style={{ marginBottom: 20 }}>
-        <Text style={{ color: '#f8fafc', fontSize: 26, fontWeight: '800' }}>
+        <Text style={{ color: '#f8fafc', fontSize: 26, fontWeight: '800', includeFontPadding: false }}>
           {activeTab === 'series' ? 'Series Tracker' : 'Author Collections'}
         </Text>
-        <Text style={{ color: '#94a3b8', fontSize: 14, marginTop: 2 }}>
+        <Text style={{ color: '#94a3b8', fontSize: 14, marginTop: 2, includeFontPadding: false }}>
           {activeTab === 'series'
             ? 'Track series completion, view owned volumes, and discover missing books in your collection.'
             : 'Group and collect all books in your library by author (e.g., Stephen King, Lee Child).'}
@@ -36,38 +39,43 @@ export default function SeriesTrackerScreen() {
       {/* Segmented Control / Tab Switcher */}
       <View
         style={{
-          flexDirection: 'row',
+          flexDirection: isSmallScreen ? 'column' : 'row',
           backgroundColor: '#1e293b',
           borderRadius: 14,
           padding: 4,
           marginBottom: 16,
           borderWidth: 1,
           borderColor: '#334155',
+          gap: 4,
         }}
       >
         <TouchableOpacity
           onPress={() => setActiveTab('series')}
           style={{
-            flex: 1,
+            flex: isSmallScreen ? undefined : 1,
             paddingVertical: 10,
+            paddingHorizontal: 8,
             borderRadius: 10,
             alignItems: 'center',
             flexDirection: 'row',
             justifyContent: 'center',
-            gap: 8,
+            gap: isSmallScreen ? 6 : 8,
             backgroundColor: activeTab === 'series' ? '#38bdf8' : 'transparent',
           }}
         >
           <Ionicons
             name="layers-outline"
-            size={18}
+            size={isSmallScreen ? 16 : 18}
             color={activeTab === 'series' ? '#0f172a' : '#94a3b8'}
           />
           <Text
+            numberOfLines={1}
             style={{
               color: activeTab === 'series' ? '#0f172a' : '#94a3b8',
               fontWeight: '800',
-              fontSize: 14,
+              fontSize: isSmallScreen ? 13 : 14,
+              includeFontPadding: false,
+              flexShrink: 1,
             }}
           >
             Book Series ({seriesOverviews.length})
@@ -77,26 +85,30 @@ export default function SeriesTrackerScreen() {
         <TouchableOpacity
           onPress={() => setActiveTab('authors')}
           style={{
-            flex: 1,
+            flex: isSmallScreen ? undefined : 1,
             paddingVertical: 10,
+            paddingHorizontal: 8,
             borderRadius: 10,
             alignItems: 'center',
             flexDirection: 'row',
             justifyContent: 'center',
-            gap: 8,
+            gap: isSmallScreen ? 6 : 8,
             backgroundColor: activeTab === 'authors' ? '#38bdf8' : 'transparent',
           }}
         >
           <Ionicons
             name="person-outline"
-            size={18}
+            size={isSmallScreen ? 16 : 18}
             color={activeTab === 'authors' ? '#0f172a' : '#94a3b8'}
           />
           <Text
+            numberOfLines={1}
             style={{
               color: activeTab === 'authors' ? '#0f172a' : '#94a3b8',
               fontWeight: '800',
-              fontSize: 14,
+              fontSize: isSmallScreen ? 13 : 14,
+              includeFontPadding: false,
+              flexShrink: 1,
             }}
           >
             Author Collections ({authorOverviews.length})
@@ -117,19 +129,20 @@ export default function SeriesTrackerScreen() {
           marginBottom: 20,
           borderWidth: 1,
           borderColor: '#334155',
+          gap: 12,
         }}
       >
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
           <Ionicons
             name={showUnowned ? 'eye-outline' : 'eye-off-outline'}
             size={20}
             color={showUnowned ? '#38bdf8' : '#64748b'}
           />
-          <View>
-            <Text style={{ color: '#f8fafc', fontSize: 14, fontWeight: '700' }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: '#f8fafc', fontSize: 14, fontWeight: '700', includeFontPadding: false }}>
               Show Unowned / Missing Books
             </Text>
-            <Text style={{ color: '#94a3b8', fontSize: 12, marginTop: 1 }}>
+            <Text style={{ color: '#94a3b8', fontSize: 12, marginTop: 1, includeFontPadding: false }}>
               {showUnowned
                 ? 'Displaying missing volumes as greyed-out cards'
                 : 'Displaying only owned books'}
@@ -196,13 +209,14 @@ export default function SeriesTrackerScreen() {
                       justifyContent: 'space-between',
                       alignItems: 'center',
                       marginBottom: 12,
+                      gap: 8,
                     }}
                   >
-                    <View>
-                      <Text style={{ color: '#f8fafc', fontSize: 20, fontWeight: '800' }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: '#f8fafc', fontSize: 20, fontWeight: '800', includeFontPadding: false }}>
                         {overview.seriesName}
                       </Text>
-                      <Text style={{ color: '#94a3b8', fontSize: 13, marginTop: 2 }}>
+                      <Text style={{ color: '#94a3b8', fontSize: 13, marginTop: 2, includeFontPadding: false }}>
                         Owned {overview.totalOwned} of {overview.maxVolumeOwned} volumes in sequence
                       </Text>
                     </View>
@@ -215,6 +229,8 @@ export default function SeriesTrackerScreen() {
                         paddingHorizontal: 12,
                         paddingVertical: 6,
                         borderRadius: 14,
+                        alignItems: 'center',
+                        justifyContent: 'center',
                       }}
                     >
                       <Text
@@ -222,6 +238,7 @@ export default function SeriesTrackerScreen() {
                           color: hasMissing ? '#fbbf24' : '#34d399',
                           fontSize: 12,
                           fontWeight: '800',
+                          includeFontPadding: false,
                         }}
                       >
                         {hasMissing ? `${overview.missingVolumes.length} Missing` : 'Sequence Intact!'}
@@ -436,9 +453,10 @@ export default function SeriesTrackerScreen() {
                       justifyContent: 'space-between',
                       alignItems: 'center',
                       marginBottom: 16,
+                      gap: 8,
                     }}
                   >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
                       <View
                         style={{
                           width: 40,
@@ -453,11 +471,11 @@ export default function SeriesTrackerScreen() {
                       >
                         <Ionicons name="person" size={20} color="#38bdf8" />
                       </View>
-                      <View>
-                        <Text style={{ color: '#f8fafc', fontSize: 20, fontWeight: '800' }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: '#f8fafc', fontSize: 20, fontWeight: '800', includeFontPadding: false }}>
                           {authorData.authorName}
                         </Text>
-                        <Text style={{ color: '#94a3b8', fontSize: 13, marginTop: 2 }}>
+                        <Text style={{ color: '#94a3b8', fontSize: 13, marginTop: 2, includeFontPadding: false }}>
                           Author Collection
                         </Text>
                       </View>
@@ -471,9 +489,11 @@ export default function SeriesTrackerScreen() {
                         paddingHorizontal: 12,
                         paddingVertical: 6,
                         borderRadius: 14,
+                        alignItems: 'center',
+                        justifyContent: 'center',
                       }}
                     >
-                      <Text style={{ color: '#38bdf8', fontSize: 12, fontWeight: '800' }}>
+                      <Text style={{ color: '#38bdf8', fontSize: 12, fontWeight: '800', includeFontPadding: false }}>
                         {authorData.totalOwned} of {authorData.totalKnown || authorData.totalOwned} Books Owned
                       </Text>
                     </View>

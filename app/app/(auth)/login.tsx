@@ -179,6 +179,7 @@ export default function LoginScreen() {
                 borderRadius: 10,
                 backgroundColor: mode === 'signin' ? '#0284c7' : 'transparent',
                 alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
               <Text
@@ -186,6 +187,7 @@ export default function LoginScreen() {
                   color: mode === 'signin' ? '#ffffff' : '#94a3b8',
                   fontWeight: '700',
                   fontSize: 14,
+                  includeFontPadding: false,
                 }}
               >
                 Sign In
@@ -204,6 +206,7 @@ export default function LoginScreen() {
                 borderRadius: 10,
                 backgroundColor: mode === 'signup' ? '#0284c7' : 'transparent',
                 alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
               <Text
@@ -211,6 +214,7 @@ export default function LoginScreen() {
                   color: mode === 'signup' ? '#ffffff' : '#94a3b8',
                   fontWeight: '700',
                   fontSize: 14,
+                  includeFontPadding: false,
                 }}
               >
                 Create Account
@@ -321,7 +325,7 @@ export default function LoginScreen() {
               ) : (
                 <>
                   <Ionicons name="log-in-outline" size={20} color="#ffffff" />
-                  <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '700' }}>
+                  <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '700', includeFontPadding: false }}>
                     Sign In to Librarian
                   </Text>
                 </>
@@ -333,7 +337,7 @@ export default function LoginScreen() {
         {/* MODE: SIGN UP */}
         {mode === 'signup' && (
           <View>
-            <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 6 }}>
+            <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 6, includeFontPadding: false }}>
               Full Name
             </Text>
             <TextInput
@@ -355,7 +359,7 @@ export default function LoginScreen() {
               }}
             />
 
-            <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 6 }}>
+            <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 6, includeFontPadding: false }}>
               Email Address
             </Text>
             <TextInput
@@ -378,7 +382,7 @@ export default function LoginScreen() {
               }}
             />
 
-            <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 6 }}>
+            <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 6, includeFontPadding: false }}>
               Password (Min 8 chars, 1 uppercase & 1 number)
             </Text>
             <TextInput
@@ -400,7 +404,7 @@ export default function LoginScreen() {
               }}
             />
 
-            <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 6 }}>
+            <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 6, includeFontPadding: false }}>
               Confirm Password
             </Text>
             <TextInput
@@ -441,7 +445,7 @@ export default function LoginScreen() {
               ) : (
                 <>
                   <Ionicons name="person-add-outline" size={18} color="#ffffff" />
-                  <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '700' }}>
+                  <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '700', includeFontPadding: false }}>
                     Create Account & Send Code
                   </Text>
                 </>
@@ -453,12 +457,12 @@ export default function LoginScreen() {
         {/* MODE: CONFIRM VERIFICATION CODE */}
         {mode === 'confirm' && (
           <View>
-            <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 6 }}>
+            <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 6, includeFontPadding: false }}>
               Enter 6-Digit Email Verification Code
             </Text>
-            <Text style={{ color: '#94a3b8', fontSize: 12, marginBottom: 12 }}>
+            <Text style={{ color: '#94a3b8', fontSize: 12, marginBottom: 12, includeFontPadding: false }}>
               Verification code sent to:{' '}
-              <Text style={{ color: '#38bdf8', fontWeight: '700' }}>
+              <Text style={{ color: '#38bdf8', fontWeight: '700', includeFontPadding: false }}>
                 {unconfirmedEmail || email}
               </Text>
             </Text>
@@ -504,7 +508,7 @@ export default function LoginScreen() {
               ) : (
                 <>
                   <Ionicons name="checkmark-circle-outline" size={20} color="#ffffff" />
-                  <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '700' }}>
+                  <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '700', includeFontPadding: false }}>
                     Verify & Activate Account
                   </Text>
                 </>

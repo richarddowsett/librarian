@@ -177,6 +177,8 @@ export const BookFormModal: React.FC<BookFormModalProps> = ({
                 borderRadius: 12,
                 borderWidth: 1,
                 borderColor: '#334155',
+                justifyContent: 'center',
+                alignItems: 'center',
               }}
             >
               <Ionicons name="close" size={20} color="#94a3b8" />
@@ -195,14 +197,14 @@ export const BookFormModal: React.FC<BookFormModalProps> = ({
                   marginBottom: 16,
                 }}
               >
-                <Text style={{ color: '#fca5a5', fontSize: 13, fontWeight: '600' }}>
+                <Text style={{ color: '#fca5a5', fontSize: 13, fontWeight: '600', includeFontPadding: false }}>
                   {errorMsg}
                 </Text>
               </View>
             )}
 
             <View style={{ marginBottom: 16 }}>
-              <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 6 }}>
+              <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 6, includeFontPadding: false }}>
                 Book Title *
               </Text>
               <TextInput
@@ -224,7 +226,7 @@ export const BookFormModal: React.FC<BookFormModalProps> = ({
             </View>
 
             <View style={{ marginBottom: 16 }}>
-              <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 6 }}>
+              <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 6, includeFontPadding: false }}>
                 Author(s) * (comma separated)
               </Text>
               <TextInput
@@ -247,7 +249,7 @@ export const BookFormModal: React.FC<BookFormModalProps> = ({
 
             <View style={{ flexDirection: 'row', gap: 14, marginBottom: 16 }}>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 6 }}>
+                <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 6, includeFontPadding: false }}>
                   ISBN Code
                 </Text>
                 <TextInput
@@ -268,7 +270,7 @@ export const BookFormModal: React.FC<BookFormModalProps> = ({
                 />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 6 }}>
+                <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 6, includeFontPadding: false }}>
                   Reading Status
                 </Text>
                 <View style={{ flexDirection: 'row', gap: 4 }}>
@@ -282,11 +284,12 @@ export const BookFormModal: React.FC<BookFormModalProps> = ({
                         backgroundColor: readStatus === st ? '#0284c7' : '#0f172a',
                         borderRadius: 10,
                         alignItems: 'center',
+                        justifyContent: 'center',
                         borderWidth: 1,
                         borderColor: readStatus === st ? '#0284c7' : '#334155',
                       }}
                     >
-                      <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700', textTransform: 'capitalize' }}>
+                      <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700', textTransform: 'capitalize', includeFontPadding: false }}>
                         {st}
                       </Text>
                     </TouchableOpacity>
@@ -423,7 +426,7 @@ export const BookFormModal: React.FC<BookFormModalProps> = ({
               }}
             >
               <Ionicons name="checkmark-circle-sharp" size={20} color="#ffffff" />
-              <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '800' }}>
+              <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '800', includeFontPadding: false }}>
                 {initialData?.id ? 'Save Book Changes' : 'Save Book to My Library'}
               </Text>
             </TouchableOpacity>

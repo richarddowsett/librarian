@@ -2,6 +2,7 @@ import React from 'react';
 import { View, useWindowDimensions, Text, TouchableOpacity, Platform } from 'react-native';
 import { Tabs, useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Header } from '../../src/components/Header';
 import { Sidebar } from '../../src/components/Sidebar';
 import { useAuth } from '../../src/context/AuthContext';
@@ -11,19 +12,21 @@ export default function TabsLayout() {
   const isWebDesktop = width >= 768;
   const { user } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const bottomPadding = Math.max(insets.bottom, 8);
 
   if (!user) {
     // If not logged in, redirect to login page
     return (
       <View style={{ flex: 1, backgroundColor: '#0f172a', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-        <Text style={{ color: '#f8fafc', fontSize: 18, fontWeight: '700', marginBottom: 12 }}>
+        <Text style={{ color: '#f8fafc', fontSize: 18, fontWeight: '700', marginBottom: 12, includeFontPadding: false }}>
           Authentication Required
         </Text>
         <TouchableOpacity
           onPress={() => router.replace('/(auth)/login')}
-          style={{ backgroundColor: '#0284c7', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12 }}
+          style={{ backgroundColor: '#0284c7', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, justifyContent: 'center', alignItems: 'center' }}
         >
-          <Text style={{ color: '#ffffff', fontWeight: '700' }}>Go to Login</Text>
+          <Text style={{ color: '#ffffff', fontWeight: '700', includeFontPadding: false }}>Go to Login</Text>
         </TouchableOpacity>
       </View>
     );
@@ -41,8 +44,8 @@ export default function TabsLayout() {
 
         <View style={{ flex: 1, backgroundColor: '#0f172a' }}>
           <Tabs
-            sceneContainerStyle={{ backgroundColor: '#0f172a' }}
             screenOptions={{
+              sceneStyle: { backgroundColor: '#0f172a' },
               headerShown: false,
               tabBarStyle: isWebDesktop
                 ? { display: 'none' } // Hide bottom tabs on desktop
@@ -50,9 +53,9 @@ export default function TabsLayout() {
                     backgroundColor: '#0f172a',
                     borderTopColor: '#1e293b',
                     borderTopWidth: 1,
-                    height: 60,
-                    paddingBottom: 8,
-                    paddingTop: 8,
+                    height: 52 + bottomPadding,
+                    paddingBottom: bottomPadding,
+                    paddingTop: 6,
                   },
               tabBarActiveTintColor: '#38bdf8',
               tabBarInactiveTintColor: '#64748b',

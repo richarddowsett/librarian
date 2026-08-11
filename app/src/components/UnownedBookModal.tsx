@@ -143,6 +143,8 @@ export const UnownedBookModal: React.FC<UnownedBookModalProps> = ({
                 backgroundColor: '#334155',
                 padding: 8,
                 borderRadius: 20,
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
               <Ionicons name="close" size={18} color="#e2e8f0" />
@@ -305,14 +307,14 @@ export const UnownedBookModal: React.FC<UnownedBookModalProps> = ({
               ) : added ? (
                 <>
                   <Ionicons name="checkmark-circle" size={20} color="#ffffff" />
-                  <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 15 }}>
+                  <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 15, includeFontPadding: false }}>
                     Added to Your Library!
                   </Text>
                 </>
               ) : (
                 <>
                   <Ionicons name="add-circle-outline" size={20} color="#ffffff" />
-                  <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 15 }}>
+                  <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 15, includeFontPadding: false }}>
                     Add Book to My Library
                   </Text>
                 </>

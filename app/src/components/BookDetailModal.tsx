@@ -104,6 +104,8 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
                   backgroundColor: '#7f1d1d',
                   padding: 8,
                   borderRadius: 20,
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
               >
                 <Ionicons name="trash-outline" size={18} color="#fca5a5" />
@@ -114,6 +116,8 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
                   backgroundColor: '#334155',
                   padding: 8,
                   borderRadius: 20,
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
               >
                 <Ionicons name="close" size={18} color="#e2e8f0" />
@@ -144,15 +148,15 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
               </View>
 
               <View style={{ flex: 1, justifyContent: 'center' }}>
-                <Text style={{ color: '#f8fafc', fontSize: 20, fontWeight: '800', marginBottom: 4 }}>
+                <Text style={{ color: '#f8fafc', fontSize: 20, fontWeight: '800', marginBottom: 4, includeFontPadding: false }}>
                   {book.title}
                 </Text>
                 {book.subtitle ? (
-                  <Text style={{ color: '#cbd5e1', fontSize: 14, fontStyle: 'italic', marginBottom: 4 }}>
+                  <Text style={{ color: '#cbd5e1', fontSize: 14, fontStyle: 'italic', marginBottom: 4, includeFontPadding: false }}>
                     {book.subtitle}
                   </Text>
                 ) : null}
-                <Text style={{ color: '#0284c7', fontSize: 15, fontWeight: '600', marginBottom: 8 }}>
+                <Text style={{ color: '#0284c7', fontSize: 15, fontWeight: '600', marginBottom: 8, includeFontPadding: false }}>
                   By {book.authors.join(', ')}
                 </Text>
 
@@ -169,7 +173,7 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
                       marginBottom: 8,
                     }}
                   >
-                    <Text style={{ color: '#38bdf8', fontSize: 12, fontWeight: '600' }}>
+                    <Text style={{ color: '#38bdf8', fontSize: 12, fontWeight: '600', includeFontPadding: false }}>
                       Series: {book.seriesName} {book.seriesVolumeNumber ? `#${book.seriesVolumeNumber}` : ''}
                     </Text>
                   </View>
@@ -179,26 +183,26 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
                     {book.categories.map((cat, i) => (
                       <View key={i} style={{ backgroundColor: 'rgba(168, 85, 247, 0.15)', borderColor: '#a855f7', borderWidth: 1, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}>
-                        <Text style={{ color: '#c084fc', fontSize: 10, fontWeight: '700' }}>{cat}</Text>
+                        <Text style={{ color: '#c084fc', fontSize: 10, fontWeight: '700', includeFontPadding: false }}>{cat}</Text>
                       </View>
                     ))}
                   </View>
                 )}
 
                 {book.isbn ? (
-                  <Text style={{ color: '#94a3b8', fontSize: 12, fontFamily: 'monospace' }}>
+                  <Text style={{ color: '#94a3b8', fontSize: 12, fontFamily: 'monospace', includeFontPadding: false }}>
                     ISBN: {book.isbn}
                   </Text>
                 ) : null}
 
                 {book.publisher ? (
-                  <Text style={{ color: '#64748b', fontSize: 12, marginTop: 2 }}>
+                  <Text style={{ color: '#64748b', fontSize: 12, marginTop: 2, includeFontPadding: false }}>
                     Publisher: {book.publisher} ({book.publishDate || 'N/A'})
                   </Text>
                 ) : null}
 
                 {book.pageCount ? (
-                  <Text style={{ color: '#64748b', fontSize: 12 }}>
+                  <Text style={{ color: '#64748b', fontSize: 12, includeFontPadding: false }}>
                     Length: {book.pageCount} pages
                   </Text>
                 ) : null}
@@ -216,10 +220,10 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
                   marginBottom: 20,
                 }}
               >
-                <Text style={{ color: '#f8fafc', fontSize: 15, fontWeight: '700', marginBottom: 6 }}>
+                <Text style={{ color: '#f8fafc', fontSize: 15, fontWeight: '700', marginBottom: 6, includeFontPadding: false }}>
                   Book Overview & Blurb
                 </Text>
-                <Text style={{ color: '#cbd5e1', fontSize: 14, lineHeight: 22 }}>
+                <Text style={{ color: '#cbd5e1', fontSize: 14, lineHeight: 22, includeFontPadding: false }}>
                   {book.description}
                 </Text>
               </View>
@@ -227,7 +231,7 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
 
             {/* Read Status Selection */}
             <View style={{ marginBottom: 20 }}>
-              <Text style={{ color: '#cbd5e1', fontSize: 14, fontWeight: '700', marginBottom: 8 }}>
+              <Text style={{ color: '#cbd5e1', fontSize: 14, fontWeight: '700', marginBottom: 8, includeFontPadding: false }}>
                 Reading Status
               </Text>
               <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -248,9 +252,10 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
                         borderWidth: 1,
                         borderColor: isSelected ? opt.color : '#334155',
                         alignItems: 'center',
+                        justifyContent: 'center',
                       }}
                     >
-                      <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '700' }}>
+                      <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '700', includeFontPadding: false }}>
                         {opt.label}
                       </Text>
                     </TouchableOpacity>
@@ -278,22 +283,22 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
                   marginBottom: 12,
                 }}
               >
-                <Text style={{ color: '#f8fafc', fontSize: 15, fontWeight: '700' }}>
+                <Text style={{ color: '#f8fafc', fontSize: 15, fontWeight: '700', includeFontPadding: false }}>
                   Rating & Review
                 </Text>
                 {!isEditingReview ? (
                   <TouchableOpacity
                     onPress={() => setIsEditingReview(true)}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 }}
                   >
                     <Ionicons name="create-outline" size={16} color="#38bdf8" />
-                    <Text style={{ color: '#38bdf8', fontSize: 13, fontWeight: '600' }}>Edit</Text>
+                    <Text style={{ color: '#38bdf8', fontSize: 13, fontWeight: '600', includeFontPadding: false }}>Edit</Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
 
               <View style={{ marginBottom: 12 }}>
-                <Text style={{ color: '#94a3b8', fontSize: 12, marginBottom: 6 }}>Your Star Rating</Text>
+                <Text style={{ color: '#94a3b8', fontSize: 12, marginBottom: 6, includeFontPadding: false }}>Your Star Rating</Text>
                 <StarRating
                   rating={rating}
                   size={24}
@@ -304,7 +309,7 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
 
               {isEditingReview ? (
                 <View>
-                  <Text style={{ color: '#94a3b8', fontSize: 12, marginBottom: 6 }}>Your Notes & Thoughts</Text>
+                  <Text style={{ color: '#94a3b8', fontSize: 12, marginBottom: 6, includeFontPadding: false }}>Your Notes & Thoughts</Text>
                   <TextInput
                     value={review}
                     onChangeText={setReview}
@@ -332,9 +337,11 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
                         paddingVertical: 8,
                         borderRadius: 8,
                         backgroundColor: '#334155',
+                        justifyContent: 'center',
+                        alignItems: 'center',
                       }}
                     >
-                      <Text style={{ color: '#cbd5e1', fontWeight: '600' }}>Cancel</Text>
+                      <Text style={{ color: '#cbd5e1', fontWeight: '600', includeFontPadding: false }}>Cancel</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={handleSaveReview}
@@ -343,9 +350,11 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
                         paddingVertical: 8,
                         borderRadius: 8,
                         backgroundColor: '#0284c7',
+                        justifyContent: 'center',
+                        alignItems: 'center',
                       }}
                     >
-                      <Text style={{ color: '#ffffff', fontWeight: '700' }}>Save Review</Text>
+                      <Text style={{ color: '#ffffff', fontWeight: '700', includeFontPadding: false }}>Save Review</Text>
                     </TouchableOpacity>
                   </View>
                 </View>

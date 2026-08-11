@@ -65,17 +65,18 @@ export default function LibraryCatalogScreen() {
       {/* Header & Stats Summary */}
       <View
         style={{
-          flexDirection: 'row',
+          flexDirection: width < 520 ? 'column' : 'row',
           justifyContent: 'space-between',
-          alignItems: 'center',
+          alignItems: width < 520 ? 'flex-start' : 'center',
+          gap: 12,
           marginBottom: 20,
         }}
       >
-        <View>
-          <Text style={{ color: '#f8fafc', fontSize: 26, fontWeight: '800' }}>
+        <View style={{ flex: width < 520 ? undefined : 1 }}>
+          <Text style={{ color: '#f8fafc', fontSize: 26, fontWeight: '800', includeFontPadding: false }}>
             My Library Catalogue
           </Text>
-          <Text style={{ color: '#94a3b8', fontSize: 14, marginTop: 2 }}>
+          <Text style={{ color: '#94a3b8', fontSize: 14, marginTop: 2, includeFontPadding: false }}>
             Manage your physical collection, track reading progress, and log reviews.
           </Text>
         </View>
@@ -89,7 +90,9 @@ export default function LibraryCatalogScreen() {
             borderRadius: 14,
             flexDirection: 'row',
             alignItems: 'center',
+            justifyContent: 'center',
             gap: 8,
+            alignSelf: width < 520 ? 'flex-start' : 'auto',
             shadowColor: '#0284c7',
             shadowOffset: { width: 0, height: 4 },
             shadowOpacity: 0.3,
@@ -97,7 +100,7 @@ export default function LibraryCatalogScreen() {
           }}
         >
           <Ionicons name="storefront" size={18} color="#ffffff" />
-          <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 14 }}>
+          <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 14, includeFontPadding: false }}>
             Do I Own This?
           </Text>
         </TouchableOpacity>
@@ -123,8 +126,8 @@ export default function LibraryCatalogScreen() {
             borderColor: '#334155',
           }}
         >
-          <Text style={{ color: '#94a3b8', fontSize: 12, fontWeight: '600' }}>TOTAL BOOKS</Text>
-          <Text style={{ color: '#f8fafc', fontSize: 22, fontWeight: '800', marginTop: 4 }}>
+          <Text style={{ color: '#94a3b8', fontSize: 12, fontWeight: '600', includeFontPadding: false }}>TOTAL BOOKS</Text>
+          <Text style={{ color: '#f8fafc', fontSize: 22, fontWeight: '800', marginTop: 4, includeFontPadding: false }}>
             {stats.totalBooks}
           </Text>
         </View>
@@ -140,8 +143,8 @@ export default function LibraryCatalogScreen() {
             borderColor: '#334155',
           }}
         >
-          <Text style={{ color: '#94a3b8', fontSize: 12, fontWeight: '600' }}>COMPLETED READ</Text>
-          <Text style={{ color: '#059669', fontSize: 22, fontWeight: '800', marginTop: 4 }}>
+          <Text style={{ color: '#94a3b8', fontSize: 12, fontWeight: '600', includeFontPadding: false }}>COMPLETED READ</Text>
+          <Text style={{ color: '#059669', fontSize: 22, fontWeight: '800', marginTop: 4, includeFontPadding: false }}>
             {stats.readCount}
           </Text>
         </View>
@@ -157,8 +160,8 @@ export default function LibraryCatalogScreen() {
             borderColor: '#334155',
           }}
         >
-          <Text style={{ color: '#94a3b8', fontSize: 12, fontWeight: '600' }}>IN PROGRESS</Text>
-          <Text style={{ color: '#38bdf8', fontSize: 22, fontWeight: '800', marginTop: 4 }}>
+          <Text style={{ color: '#94a3b8', fontSize: 12, fontWeight: '600', includeFontPadding: false }}>IN PROGRESS</Text>
+          <Text style={{ color: '#38bdf8', fontSize: 22, fontWeight: '800', marginTop: 4, includeFontPadding: false }}>
             {stats.readingCount}
           </Text>
         </View>
@@ -174,9 +177,9 @@ export default function LibraryCatalogScreen() {
             borderColor: '#334155',
           }}
         >
-          <Text style={{ color: '#94a3b8', fontSize: 12, fontWeight: '600' }}>AVG RATING</Text>
+          <Text style={{ color: '#94a3b8', fontSize: 12, fontWeight: '600', includeFontPadding: false }}>AVG RATING</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
-            <Text style={{ color: '#f59e0b', fontSize: 22, fontWeight: '800' }}>
+            <Text style={{ color: '#f59e0b', fontSize: 22, fontWeight: '800', includeFontPadding: false }}>
               {stats.avgRating > 0 ? stats.avgRating : 'N/A'}
             </Text>
             {stats.avgRating > 0 && <Ionicons name="star" size={18} color="#f59e0b" />}
@@ -230,6 +233,7 @@ export default function LibraryCatalogScreen() {
                 borderColor: isActive ? '#0284c7' : '#334155',
                 flexDirection: 'row',
                 alignItems: 'center',
+                justifyContent: 'center',
                 gap: 6,
               }}
             >
@@ -238,6 +242,7 @@ export default function LibraryCatalogScreen() {
                   color: isActive ? '#ffffff' : '#cbd5e1',
                   fontSize: 13,
                   fontWeight: isActive ? '700' : '500',
+                  includeFontPadding: false,
                 }}
               >
                 {tab.label}
@@ -248,6 +253,8 @@ export default function LibraryCatalogScreen() {
                   paddingHorizontal: 6,
                   paddingVertical: 2,
                   borderRadius: 10,
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
               >
                 <Text
@@ -255,6 +262,7 @@ export default function LibraryCatalogScreen() {
                     color: isActive ? '#ffffff' : '#94a3b8',
                     fontSize: 11,
                     fontWeight: '700',
+                    includeFontPadding: false,
                   }}
                 >
                   {tab.count}
