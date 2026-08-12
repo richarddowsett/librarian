@@ -151,81 +151,33 @@ export async function analyzeBookshelfImage(
     };
   }
 
-  if (API_BASE_URL) {
-    try {
-      const response = await fetch(`${API_BASE_URL}/bookshelf/analyze`, {
-        method: 'POST',
-        headers: getHeaders(options),
-        body: JSON.stringify({ s3Key }),
-      });
-
-      if (checkUnauthorized(response, options)) {
-        return {
-          isBookshelf: false,
-          books: [],
-          message: 'Session expired. Please log in again.',
-        };
-      }
-
-      if (response.ok) {
-        const data = await response.json();
-        return {
-          isBookshelf: data.isBookshelf ?? true,
-          books: data.candidateBooks || data.books || [],
-          message: data.message,
-        };
-      }
-    } catch (error) {
-      console.warn('API Gateway bookshelf analysis endpoint offline, using fallback dev mode:', error);
-    }
+  if (!API_BASE_URL) {
+    throw new Error('API_BASE_URL is not configured');
   }
 
-  // Fallback mock analysis result for dev testing
-  await new Promise((resolve) => setTimeout(resolve, 800));
+  const response = await fetch(`${API_BASE_URL}/bookshelf/analyze`, {
+    method: 'POST',
+    headers: getHeaders(options),
+    body: JSON.stringify({ s3Key }),
+  });
 
+  if (checkUnauthorized(response, options)) {
+    return {
+      isBookshelf: false,
+      books: [],
+      message: 'Session expired. Please log in again.',
+    };
+  }
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => 'Unknown error');
+    throw new Error(`API analysis request failed with status ${response.status}: ${errorText}`);
+  }
+
+  const data = await response.json();
   return {
-    isBookshelf: true,
-    books: [
-      {
-        title: 'The Great Gatsby',
-        authors: ['F. Scott Fitzgerald'],
-        isbn: '9780743273565',
-        publisher: 'Scribner',
-        publishDate: '1925',
-        pageCount: 180,
-        coverUrl: 'https://covers.openlibrary.org/b/isbn/9780743273565-M.jpg',
-        confidence: 0.96,
-      },
-      {
-        title: 'To Kill a Mockingbird',
-        authors: ['Harper Lee'],
-        isbn: '9780061120084',
-        publisher: 'Harper Perennial',
-        publishDate: '1960',
-        pageCount: 324,
-        coverUrl: 'https://covers.openlibrary.org/b/isbn/9780061120084-M.jpg',
-        confidence: 0.93,
-      },
-      {
-        title: '1984',
-        authors: ['George Orwell'],
-        isbn: '9780451524935',
-        publisher: 'Signet Classic',
-        publishDate: '1949',
-        pageCount: 328,
-        coverUrl: 'https://covers.openlibrary.org/b/isbn/9780451524935-M.jpg',
-        confidence: 0.91,
-      },
-      {
-        title: 'The Catcher in the Rye',
-        authors: ['J.D. Salinger'],
-        isbn: '9780316769487',
-        publisher: 'Little, Brown and Company',
-        publishDate: '1951',
-        pageCount: 234,
-        coverUrl: 'https://covers.openlibrary.org/b/isbn/9780316769487-M.jpg',
-        confidence: 0.88,
-      },
-    ],
+    isBookshelf: data.isBookshelf ?? true,
+    books: data.candidateBooks || data.books || [],
+    message: data.message,
   };
 }

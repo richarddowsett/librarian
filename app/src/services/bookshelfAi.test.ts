@@ -114,15 +114,12 @@ describe('bookshelfAi service', () => {
       expect(result.books[0].title).toBe('Dune');
     });
 
-    it('falls back to mock detected books in dev fallback when fetch fails', async () => {
+    it('propagates error when fetch fails', async () => {
       global.fetch = jest.fn().mockRejectedValue(new Error('Backend offline'));
 
-      const result = await analyzeBookshelfImage('bookshelf-uploads/dev-sample.jpg');
-
-      expect(result.isBookshelf).toBe(true);
-      expect(result.books.length).toBeGreaterThan(0);
-      expect(result.books[0]).toHaveProperty('title');
-      expect(result.books[0]).toHaveProperty('authors');
+      await expect(analyzeBookshelfImage('bookshelf-uploads/dev-sample.jpg')).rejects.toThrow(
+        'Backend offline'
+      );
     });
   });
 });
