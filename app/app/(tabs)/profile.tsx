@@ -1,19 +1,25 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Image } from 'react-native';
+import { View, Text, TouchableOpacity, Image } from 'react-native';
 import { useAuth } from '../../src/context/AuthContext';
 import { useLibrary } from '../../src/context/LibraryContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { PullToRefreshScrollView } from '../../src/components/PullToRefreshScrollView';
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
-  const { stats } = useLibrary();
+  const { stats, refreshing, refreshLibrary } = useLibrary();
   const router = useRouter();
 
   if (!user) return null;
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: '#0f172a' }} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+    <PullToRefreshScrollView
+      style={{ flex: 1, backgroundColor: '#0f172a' }}
+      contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+      refreshing={refreshing}
+      onRefresh={refreshLibrary}
+    >
       <View style={{ marginBottom: 20 }}>
         <Text style={{ color: '#f8fafc', fontSize: 26, fontWeight: '800' }}>
           User Profile & Settings
@@ -122,6 +128,6 @@ export default function ProfileScreen() {
         <Ionicons name="log-out-outline" size={20} color="#fca5a5" />
         <Text style={{ color: '#fca5a5', fontSize: 16, fontWeight: '800', includeFontPadding: false }}>Sign Out</Text>
       </TouchableOpacity>
-    </ScrollView>
+    </PullToRefreshScrollView>
   );
 }

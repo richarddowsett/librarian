@@ -12,6 +12,7 @@ import { BookCard } from '../../src/components/BookCard';
 import { BookDetailModal } from '../../src/components/BookDetailModal';
 import { BookFormModal } from '../../src/components/BookFormModal';
 import { DoIOwnModal } from '../../src/components/DoIOwnModal';
+import { PullToRefreshScrollView } from '../../src/components/PullToRefreshScrollView';
 import { Book } from '../../src/schemas/book';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -23,6 +24,8 @@ export default function LibraryCatalogScreen() {
     statusFilter,
     setStatusFilter,
     stats,
+    refreshing,
+    refreshLibrary,
   } = useLibrary();
 
   const { width } = useWindowDimensions();
@@ -61,7 +64,12 @@ export default function LibraryCatalogScreen() {
   ];
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: '#0f172a' }} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+    <PullToRefreshScrollView
+      style={{ flex: 1, backgroundColor: '#0f172a' }}
+      contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+      refreshing={refreshing}
+      onRefresh={refreshLibrary}
+    >
       {/* Header & Stats Summary */}
       <View
         style={{
@@ -331,6 +339,6 @@ export default function LibraryCatalogScreen() {
         visible={isDoIOwnModalOpen}
         onClose={() => setIsDoIOwnModalOpen(false)}
       />
-    </ScrollView>
+    </PullToRefreshScrollView>
   );
 }

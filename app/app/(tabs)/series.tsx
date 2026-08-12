@@ -5,9 +5,10 @@ import { Book } from '../../src/schemas/book';
 import { Ionicons } from '@expo/vector-icons';
 import { BookDetailModal } from '../../src/components/BookDetailModal';
 import { UnownedBookModal } from '../../src/components/UnownedBookModal';
+import { PullToRefreshScrollView } from '../../src/components/PullToRefreshScrollView';
 
 export default function SeriesTrackerScreen() {
-  const { seriesOverviews, authorOverviews } = useLibrary();
+  const { seriesOverviews, authorOverviews, refreshing, refreshLibrary } = useLibrary();
   const { width } = useWindowDimensions();
   const [activeTab, setActiveTab] = useState<'series' | 'authors'>('series');
   const [showUnowned, setShowUnowned] = useState<boolean>(true);
@@ -23,7 +24,12 @@ export default function SeriesTrackerScreen() {
   const isSmallScreen = width < 420;
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: '#0f172a' }} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+    <PullToRefreshScrollView
+      style={{ flex: 1, backgroundColor: '#0f172a' }}
+      contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+      refreshing={refreshing}
+      onRefresh={refreshLibrary}
+    >
       {/* Title Header */}
       <View style={{ marginBottom: 20 }}>
         <Text style={{ color: '#f8fafc', fontSize: 26, fontWeight: '800', includeFontPadding: false }}>
@@ -681,6 +687,6 @@ export default function SeriesTrackerScreen() {
         seriesVolumeNumber={selectedUnownedBook?.seriesVolumeNumber}
         initialCoverUrl={selectedUnownedBook?.coverUrl}
       />
-    </ScrollView>
+    </PullToRefreshScrollView>
   );
 }

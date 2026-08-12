@@ -46,6 +46,8 @@ interface LibraryContextType {
   setSearchQuery: (query: string) => void;
   statusFilter: 'all' | 'unread' | 'reading' | 'read';
   setStatusFilter: (status: 'all' | 'unread' | 'reading' | 'read') => void;
+  refreshing: boolean;
+  refreshLibrary: () => Promise<void>;
   addBook: (input: Omit<CreateBookInput, 'ownerId'>) => Promise<{ success: boolean; book?: Book; error?: string }>;
   updateBook: (id: string, updates: Partial<Book>) => Promise<void>;
   updateBookReview: (id: string, reviewData: UpdateBookReviewInput) => Promise<void>;
@@ -71,6 +73,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [statusFilter, setStatusFilter] = useState<'all' | 'unread' | 'reading' | 'read'>('all');
   const [authorCatalogsMap, setAuthorCatalogsMap] = useState<Record<string, CatalogBook[]>>({});
   const [seriesCatalogsMap, setSeriesCatalogsMap] = useState<Record<string, CatalogBook[]>>({});
+  const [refreshing, setRefreshing] = useState<boolean>(false);
 
   const handleUnauthorized = () => {
     console.warn('401 Unauthorized response received. Logging out expired user session.');
@@ -78,6 +81,23 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       window.alert('Your login session has expired. Please sign in again to access your library catalogue.');
     }
     logout();
+  };
+
+  const refreshLibrary = async () => {
+    if (!user) return;
+    setRefreshing(true);
+    try {
+      const remoteBooks = await fetchBooksApi({
+        authToken: authToken || undefined,
+        userId: user.uid,
+        onUnauthorized: handleUnauthorized,
+      });
+      setBooks(remoteBooks || []);
+    } catch (err) {
+      console.error('Error refreshing library:', err);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   // Load books from API Gateway using Cognito JWT Token
@@ -444,6 +464,8 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setSearchQuery,
         statusFilter,
         setStatusFilter,
+        refreshing,
+        refreshLibrary,
         addBook,
         updateBook,
         updateBookReview,

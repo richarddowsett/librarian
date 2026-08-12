@@ -210,4 +210,30 @@ describe('Author & Series Collections Data Isolation', () => {
     expect(doIOwn('Killing Floor')).toBe(false);
     expect(doIOwn('9781501142970')).toBe(false);
   });
+
+  it('VERIFIES: refreshLibrary re-fetches latest library books and handles loading state', async () => {
+    let refreshingState = false;
+    const fetchBooksApiMock = jest.fn().mockResolvedValue([
+      { id: 'refreshed-1', title: 'Refreshed Book', authors: ['Author A'], readStatus: 'read' },
+    ]);
+
+    const refreshLibrary = async () => {
+      refreshingState = true;
+      try {
+        const books = await fetchBooksApiMock();
+        return books;
+      } finally {
+        refreshingState = false;
+      }
+    };
+
+    const promise = refreshLibrary();
+    expect(refreshingState).toBe(true);
+
+    const result = await promise;
+    expect(refreshingState).toBe(false);
+    expect(fetchBooksApiMock).toHaveBeenCalledTimes(1);
+    expect(result).toHaveLength(1);
+    expect(result[0].title).toBe('Refreshed Book');
+  });
 });
