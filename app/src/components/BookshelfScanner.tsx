@@ -110,8 +110,8 @@ export const BookshelfScanner: React.FC<BookshelfScannerProps> = ({ onBookCatalo
         return;
       }
 
-      // Step 3: Trigger Bedrock Vision AI analysis
-      setStatusMessage('3/3 Analyzing bookshelf spines with Bedrock AI...');
+      // Step 3: Trigger Gemini Vision AI analysis
+      setStatusMessage('3/3 Analyzing bookshelf spines with Gemini AI...');
       const result = await analyzeBookshelfImage(presigned.s3Key, apiOptions);
 
       setIsAnalyzing(false);
@@ -213,7 +213,7 @@ export const BookshelfScanner: React.FC<BookshelfScannerProps> = ({ onBookCatalo
             </Text>
           </View>
           <Text style={{ color: '#94a3b8', fontSize: 14 }}>
-            Take or upload a photo of your bookshelf. Our Bedrock Vision AI extracts book titles &
+            Take or upload a photo of your bookshelf. Our Gemini Vision AI extracts book titles &
             authors automatically!
           </Text>
         </View>

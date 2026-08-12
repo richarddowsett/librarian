@@ -1,23 +1,20 @@
-import {
-  BedrockRuntimeClient,
-  InvokeModelCommand,
-  InvokeModelCommandInput,
-} from '@aws-sdk/client-bedrock-runtime';
+import { GoogleGenAI } from '@google/genai';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
-import { BedrockAnalysisResult } from '../types';
+import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
+import { GeminiAnalysisResult } from '../types';
 
-export interface BedrockServiceOptions {
-  bedrockClient?: BedrockRuntimeClient;
-  s3Client?: S3Client;
+export interface GeminiServiceOptions {
+  apiKey?: string;
   modelId?: string;
-  guardrailId?: string;
-  guardrailVersion?: string;
+  s3Client?: S3Client;
+  secretsClient?: SecretsManagerClient;
 }
 
-const DEFAULT_MODEL_ID = 'us.anthropic.claude-3-5-sonnet-20241022-v2:0';
+const DEFAULT_MODEL_ID = 'gemini-2.5-flash';
 
 let s3ClientInstance: S3Client | null = null;
-let bedrockClientInstance: BedrockRuntimeClient | null = null;
+let secretsClientInstance: SecretsManagerClient | null = null;
+let cachedApiKey: string | null = null;
 
 function getS3Client(): S3Client {
   if (!s3ClientInstance) {
@@ -27,12 +24,45 @@ function getS3Client(): S3Client {
   return s3ClientInstance;
 }
 
-function getBedrockClient(): BedrockRuntimeClient {
-  if (!bedrockClientInstance) {
+function getSecretsClient(): SecretsManagerClient {
+  if (!secretsClientInstance) {
     const region = process.env.AWS_REGION || 'eu-central-1';
-    bedrockClientInstance = new BedrockRuntimeClient({ region });
+    secretsClientInstance = new SecretsManagerClient({ region });
   }
-  return bedrockClientInstance;
+  return secretsClientInstance;
+}
+
+export function _resetGeminiApiKeyCache(): void {
+  cachedApiKey = null;
+}
+
+export async function getGeminiApiKey(secretsClient?: SecretsManagerClient): Promise<string> {
+  if (process.env.GEMINI_API_KEY) {
+    return process.env.GEMINI_API_KEY;
+  }
+
+  if (cachedApiKey) {
+    return cachedApiKey;
+  }
+
+  const secretName = process.env.GEMINI_SECRET_NAME || 'librarian/gemini-api-key';
+  const sm = secretsClient || getSecretsClient();
+
+  try {
+    const command = new GetSecretValueCommand({ SecretId: secretName });
+    const response = await sm.send(command);
+
+    if (response.SecretString) {
+      cachedApiKey = response.SecretString.trim();
+      return cachedApiKey;
+    }
+  } catch (err: any) {
+    console.warn(`Could not retrieve secret '${secretName}' from Secrets Manager:`, err.message);
+  }
+
+  throw new Error(
+    `Gemini API key is not configured. Set GEMINI_API_KEY env var or populate secret '${secretName}' in AWS Secrets Manager.`
+  );
 }
 
 export const BOOKSHELF_ANALYSIS_SYSTEM_PROMPT = `You are an expert AI system for analyzing images of bookshelves, bookcases, and collections of books.
@@ -61,19 +91,18 @@ JSON Schema:
 }`;
 
 /**
- * Downloads a bookshelf image from S3 and invokes Anthropic Claude 3.5 Sonnet on Amazon Bedrock
+ * Downloads a bookshelf image from S3 and invokes Google Gemini 2.5 Flash
  * to analyze whether it's a bookshelf and perform OCR to extract book titles & authors.
  */
 export async function analyzeBookshelfImage(
   s3Bucket: string,
   s3Key: string,
-  options?: BedrockServiceOptions
-): Promise<BedrockAnalysisResult> {
+  options?: GeminiServiceOptions
+): Promise<GeminiAnalysisResult> {
   const s3 = options?.s3Client || getS3Client();
-  const bedrock = options?.bedrockClient || getBedrockClient();
-  const modelId = options?.modelId || process.env.BEDROCK_MODEL_ID || DEFAULT_MODEL_ID;
-  const guardrailId = options?.guardrailId || process.env.BEDROCK_GUARDRAIL_ID;
-  const guardrailVersion = options?.guardrailVersion || process.env.BEDROCK_GUARDRAIL_VERSION || 'DRAFT';
+  const modelId = options?.modelId || process.env.GEMINI_MODEL_ID || DEFAULT_MODEL_ID;
+
+  const apiKey = options?.apiKey || (await getGeminiApiKey(options?.secretsClient));
 
   // 1. Download image from S3
   const getObjCmd = new GetObjectCommand({ Bucket: s3Bucket, Key: s3Key });
@@ -86,73 +115,50 @@ export async function analyzeBookshelfImage(
   const byteArray = await s3Response.Body.transformToByteArray();
   const base64Image = Buffer.from(byteArray).toString('base64');
 
-  let mediaType = s3Response.ContentType || 'image/jpeg';
-  if (mediaType === 'application/octet-stream' || !mediaType.startsWith('image/')) {
+  let mimeType = s3Response.ContentType || 'image/jpeg';
+  if (mimeType === 'application/octet-stream' || !mimeType.startsWith('image/')) {
     if (s3Key.toLowerCase().endsWith('.png')) {
-      mediaType = 'image/png';
+      mimeType = 'image/png';
     } else if (s3Key.toLowerCase().endsWith('.webp')) {
-      mediaType = 'image/webp';
+      mimeType = 'image/webp';
     } else {
-      mediaType = 'image/jpeg';
+      mimeType = 'image/jpeg';
     }
   }
 
-  // 2. Prepare Bedrock Request Payload for Anthropic Claude 3.5 Sonnet
-  const bedrockPayload = {
-    anthropic_version: 'bedrock-2023-05-31',
-    max_tokens: 4096,
-    system: BOOKSHELF_ANALYSIS_SYSTEM_PROMPT,
-    messages: [
+  // 2. Invoke Google Gemini Vision Model
+  const ai = new GoogleGenAI({ apiKey });
+  const response = await ai.models.generateContent({
+    model: modelId,
+    contents: [
       {
         role: 'user',
-        content: [
+        parts: [
           {
-            type: 'image',
-            source: {
-              type: 'base64',
-              media_type: mediaType,
+            inlineData: {
+              mimeType,
               data: base64Image,
             },
           },
           {
-            type: 'text',
-            text: 'Analyze this photo of a bookshelf or book collection, perform OCR text extraction, and return the structured JSON result.',
+            text: 'Analyze this photo of a bookshelf or book collection, perform OCR text extraction, and return the structured JSON result according to system instructions.',
           },
         ],
       },
     ],
-  };
+    config: {
+      systemInstruction: BOOKSHELF_ANALYSIS_SYSTEM_PROMPT,
+      responseMimeType: 'application/json',
+    },
+  });
 
-  const commandInput: InvokeModelCommandInput = {
-    modelId,
-    contentType: 'application/json',
-    accept: 'application/json',
-    body: JSON.stringify(bedrockPayload),
-  };
-
-  if (guardrailId) {
-    commandInput.guardrailIdentifier = guardrailId;
-    commandInput.guardrailVersion = guardrailVersion;
+  const responseText = response.text;
+  if (!responseText) {
+    throw new Error('Gemini model returned an empty response');
   }
 
-  // 3. Invoke Bedrock
-  const bedrockResponse = await bedrock.send(new InvokeModelCommand(commandInput));
-
-  if (!bedrockResponse.body) {
-    throw new Error('Bedrock returned an empty response body');
-  }
-
-  const responseText = new TextDecoder('utf-8').decode(bedrockResponse.body);
-  const parsedResponseBody = JSON.parse(responseText);
-
-  // Anthropic Claude response structure has array of content blocks in `content`
-  const textContent = parsedResponseBody?.content?.[0]?.text;
-  if (!textContent) {
-    throw new Error('Bedrock response did not contain text content');
-  }
-
-  // 4. Clean and parse LLM response JSON
-  let cleanedText = textContent.trim();
+  // 3. Clean and parse structured output JSON
+  let cleanedText = responseText.trim();
   if (cleanedText.startsWith('```')) {
     cleanedText = cleanedText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
   }
@@ -180,6 +186,6 @@ export async function analyzeBookshelfImage(
       extracted_books: extractedBooks,
     };
   } catch (err: any) {
-    throw new Error(`Failed to parse structured JSON from Bedrock model output: ${err.message}`);
+    throw new Error(`Failed to parse structured JSON from Gemini model output: ${err.message}`);
   }
 }

@@ -136,7 +136,7 @@ export async function uploadImageToS3(
 }
 
 /**
- * Calls API Gateway to trigger Bedrock Vision scan & metadata resolution on uploaded S3 key.
+ * Calls API Gateway to trigger Gemini Vision scan & metadata resolution on uploaded S3 key.
  */
 export async function analyzeBookshelfImage(
   s3Key: string,
@@ -171,7 +171,7 @@ export async function analyzeBookshelfImage(
         const data = await response.json();
         return {
           isBookshelf: data.isBookshelf ?? true,
-          books: data.books || [],
+          books: data.candidateBooks || data.books || [],
           message: data.message,
         };
       }

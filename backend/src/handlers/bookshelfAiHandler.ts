@@ -1,8 +1,9 @@
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { analyzeBookshelfImage } from '../services/bedrockService';
+import { analyzeBookshelfImage } from '../services/geminiService';
 import { resolveCandidateBooks } from '../services/bookSearchService';
+
 
 let s3ClientInstance: S3Client | null = null;
 
@@ -120,25 +121,27 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<APIGateway
 
       const bucket = process.env.BOOKSHELF_BUCKET_NAME || process.env.BOOKSHELF_UPLOAD_BUCKET || 'librarian-dev-bookshelf-uploads';
 
-      // Call Bedrock AI Service
-      const bedrockResult = await analyzeBookshelfImage(bucket, s3Key.trim());
+      // Call Gemini Vision AI Service
+      const geminiResult = await analyzeBookshelfImage(bucket, s3Key.trim());
 
-      if (!bedrockResult.is_bookshelf) {
+      if (!geminiResult.is_bookshelf) {
         return jsonResponse(200, {
           success: true,
           isBookshelf: false,
-          message: bedrockResult.guardrail_reason || 'Image does not appear to contain a bookshelf or books.',
+          message: geminiResult.guardrail_reason || 'Image does not appear to contain a bookshelf or books.',
           candidateBooks: [],
+          books: [],
         });
       }
 
       // Resolve candidate books via Google Books / Open Library APIs
-      const candidateBooks = await resolveCandidateBooks(bedrockResult.extracted_books);
+      const candidateBooks = await resolveCandidateBooks(geminiResult.extracted_books);
 
       return jsonResponse(200, {
         success: true,
         isBookshelf: true,
         candidateBooks,
+        books: candidateBooks,
       });
     }
 

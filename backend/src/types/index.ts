@@ -123,16 +123,20 @@ export interface ExtractedBook {
   spine_location_hint?: string;
 }
 
-export interface BedrockAnalysisResult {
+export interface GeminiAnalysisResult {
   is_bookshelf: boolean;
   guardrail_reason: string | null;
   extracted_books: ExtractedBook[];
 }
+
+export type BedrockAnalysisResult = GeminiAnalysisResult;
 
 export interface BookshelfAnalyzeResponse {
   success: boolean;
   isBookshelf: boolean;
   message?: string;
   candidateBooks: SanitizedBookMetadata[];
+  books?: SanitizedBookMetadata[];
 }
+
 

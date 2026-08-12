@@ -7,7 +7,7 @@ export interface BookSearchOptions {
 }
 
 /**
- * Takes extracted book titles & authors from Bedrock and concurrently queries Google Books API
+ * Takes extracted book titles & authors from Gemini and concurrently queries Google Books API
  * and OpenLibrary API to retrieve verified candidate book metadata.
  */
 export async function resolveCandidateBooks(

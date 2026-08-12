@@ -308,57 +308,10 @@ resource "aws_lambda_function" "google_books" {
   timeout          = 15
 }
 
-# --- 4c. Bedrock Content Guardrail for Bookshelf AI Scanner ---
-resource "aws_bedrock_guardrail" "bookshelf_guardrail" {
-  name                      = "${local.name_prefix}-bookshelf-guardrail"
-  description               = "Bedrock content guardrail for Bookshelf AI Scanner"
-  blocked_input_messaging   = "Image scan rejected: The provided content does not appear to be a bookshelf or book collection."
-  blocked_outputs_messaging = "Response blocked due to content guardrail policy."
-
-  content_policy_config {
-    filters_config {
-      type            = "SEXUAL"
-      input_strength  = "HIGH"
-      output_strength = "HIGH"
-    }
-    filters_config {
-      type            = "VIOLENCE"
-      input_strength  = "HIGH"
-      output_strength = "HIGH"
-    }
-    filters_config {
-      type            = "HATE"
-      input_strength  = "HIGH"
-      output_strength = "HIGH"
-    }
-    filters_config {
-      type            = "MISCONDUCT"
-      input_strength  = "HIGH"
-      output_strength = "HIGH"
-    }
-    filters_config {
-      type            = "PROMPT_ATTACK"
-      input_strength  = "HIGH"
-      output_strength = "NONE"
-    }
-  }
-
-  topic_policy_config {
-    topics_config {
-      name       = "non_bookshelf_content"
-      definition = "Content or queries unrelated to books, bookshelves, libraries, or book spines."
-      type       = "DENY"
-      examples = [
-        "How do I repair a car engine?",
-        "Pictures of non-book objects or unrelated subjects"
-      ]
-    }
-  }
-}
-
-resource "aws_bedrock_guardrail_version" "bookshelf_guardrail" {
-  guardrail_arn = aws_bedrock_guardrail.bookshelf_guardrail.guardrail_arn
-  description   = "Initial version of bookshelf scanner guardrail"
+# --- 4c. Secrets Manager Secret for Gemini API Key ---
+resource "aws_secretsmanager_secret" "gemini_api_key" {
+  name        = "librarian/gemini-api-key"
+  description = "Google Gemini API Key for Bookshelf AI Scanner"
 }
 
 # --- 4d. Bookshelf AI Scanner Lambda & IAM Role ---
@@ -374,7 +327,7 @@ resource "aws_iam_role_policy_attachment" "bookshelf_ai_lambda_basic" {
 
 resource "aws_iam_policy" "bookshelf_ai_policy" {
   name        = "${local.name_prefix}-bookshelf-ai-policy"
-  description = "Bedrock model/guardrail and S3 bucket access policy for Bookshelf AI Lambda"
+  description = "Secrets Manager and S3 bucket access policy for Bookshelf AI Lambda"
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -382,14 +335,11 @@ resource "aws_iam_policy" "bookshelf_ai_policy" {
       {
         Effect = "Allow"
         Action = [
-          "bedrock:InvokeModel",
-          "bedrock:ApplyGuardrail"
+          "secretsmanager:GetSecretValue"
         ]
         Resource = [
-          "arn:aws:bedrock:*::foundation-model/anthropic.claude-3-5-sonnet-*",
-          "arn:aws:bedrock:*:*:foundation-model/us.anthropic.claude-3-5-sonnet-20241022-v2:0",
-          aws_bedrock_guardrail.bookshelf_guardrail.guardrail_arn,
-          "*"
+          aws_secretsmanager_secret.gemini_api_key.arn,
+          "${aws_secretsmanager_secret.gemini_api_key.arn}-*"
         ]
       },
       {
@@ -424,11 +374,10 @@ resource "aws_lambda_function" "bookshelf_ai" {
 
   environment {
     variables = {
-      BOOKSHELF_BUCKET_NAME     = aws_s3_bucket.bookshelf_uploads.id
-      BOOKSHELF_UPLOAD_BUCKET   = aws_s3_bucket.bookshelf_uploads.id
-      BEDROCK_MODEL_ID          = "us.anthropic.claude-3-5-sonnet-20241022-v2:0"
-      BEDROCK_GUARDRAIL_ID      = aws_bedrock_guardrail.bookshelf_guardrail.guardrail_id
-      BEDROCK_GUARDRAIL_VERSION = aws_bedrock_guardrail_version.bookshelf_guardrail.version
+      BOOKSHELF_BUCKET_NAME   = aws_s3_bucket.bookshelf_uploads.id
+      BOOKSHELF_UPLOAD_BUCKET = aws_s3_bucket.bookshelf_uploads.id
+      GEMINI_SECRET_NAME      = aws_secretsmanager_secret.gemini_api_key.name
+      GEMINI_MODEL_ID         = "gemini-2.5-flash"
     }
   }
 }

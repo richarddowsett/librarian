@@ -1,5 +1,5 @@
 import { handler } from '../bookshelfAiHandler';
-import * as bedrockService from '../../services/bedrockService';
+import * as geminiService from '../../services/geminiService';
 import * as bookSearchService from '../../services/bookSearchService';
 import { APIGatewayProxyStructuredResultV2 } from 'aws-lambda';
 
@@ -99,7 +99,7 @@ describe('Bookshelf AI Handler', () => {
     });
 
     it('returns isBookshelf false with guardrail message when image is not a bookshelf', async () => {
-      jest.spyOn(bedrockService, 'analyzeBookshelfImage').mockResolvedValue({
+      jest.spyOn(geminiService, 'analyzeBookshelfImage').mockResolvedValue({
         is_bookshelf: false,
         guardrail_reason: 'Image is a portrait of a person',
         extracted_books: [],
@@ -120,7 +120,7 @@ describe('Bookshelf AI Handler', () => {
       const mockExtractedBooks = [
         { title: 'The Great Gatsby', author: 'F. Scott Fitzgerald', confidence: 0.99 },
       ];
-      jest.spyOn(bedrockService, 'analyzeBookshelfImage').mockResolvedValue({
+      jest.spyOn(geminiService, 'analyzeBookshelfImage').mockResolvedValue({
         is_bookshelf: true,
         guardrail_reason: null,
         extracted_books: mockExtractedBooks,
@@ -150,16 +150,17 @@ describe('Bookshelf AI Handler', () => {
       expect(body.isBookshelf).toBe(true);
       expect(body.candidateBooks).toHaveLength(1);
       expect(body.candidateBooks[0].title).toBe('The Great Gatsby');
+      expect(body.books).toHaveLength(1);
 
-      expect(bedrockService.analyzeBookshelfImage).toHaveBeenCalledWith(
+      expect(geminiService.analyzeBookshelfImage).toHaveBeenCalledWith(
         expect.any(String),
         'uploads/bookshelf.jpg'
       );
       expect(bookSearchService.resolveCandidateBooks).toHaveBeenCalledWith(mockExtractedBooks);
     });
 
-    it('returns 500 when bedrock analysis throws an internal error', async () => {
-      jest.spyOn(bedrockService, 'analyzeBookshelfImage').mockRejectedValue(new Error('Bedrock API error'));
+    it('returns 500 when Gemini analysis throws an internal error', async () => {
+      jest.spyOn(geminiService, 'analyzeBookshelfImage').mockRejectedValue(new Error('Gemini API error'));
 
       const event = createEvent('POST', '/bookshelf/analyze', { s3Key: 'uploads/bookshelf.jpg' });
       const result = (await handler(event)) as APIGatewayProxyStructuredResultV2;
@@ -167,7 +168,7 @@ describe('Bookshelf AI Handler', () => {
       expect(result.statusCode).toBe(500);
       const body = JSON.parse(result.body as string);
       expect(body.success).toBe(false);
-      expect(body.error).toBe('Bedrock API error');
+      expect(body.error).toBe('Gemini API error');
     });
   });
 
