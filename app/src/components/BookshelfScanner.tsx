@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   ScrollView,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Camera, CameraView } from 'expo-camera';
@@ -24,6 +25,8 @@ export interface BookshelfScannerProps {
 }
 
 export const BookshelfScanner: React.FC<BookshelfScannerProps> = ({ onBookCataloged }) => {
+  const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
   const { user, authToken } = useAuth();
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [capturedImageUri, setCapturedImageUri] = useState<string | null>(null);
@@ -190,6 +193,274 @@ export const BookshelfScanner: React.FC<BookshelfScannerProps> = ({ onBookCatalo
     setStatusMessage('');
   };
 
+  const renderHeader = () => (
+    <View style={{ marginBottom: isLandscape ? 0 : 16 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        <Ionicons name="sparkles" size={24} color="#38bdf8" />
+        <Text style={{ color: '#f8fafc', fontSize: 24, fontWeight: '800' }}>
+          Bookshelf Photo AI Scanner
+        </Text>
+      </View>
+      <Text style={{ color: '#94a3b8', fontSize: 14 }}>
+        Take or upload a photo of your bookshelf. Our Gemini Vision AI extracts book titles &
+        authors automatically!
+      </Text>
+    </View>
+  );
+
+  const renderGuardrail = () => guardrailAlert && (
+    <View
+      style={{
+        backgroundColor: 'rgba(239, 68, 68, 0.12)',
+        borderColor: '#ef4444',
+        borderWidth: 1.5,
+        padding: 16,
+        borderRadius: 16,
+        marginBottom: isLandscape ? 0 : 20,
+        width: '100%',
+      }}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+        <Ionicons name="warning-outline" size={24} color="#fca5a5" />
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: '#fca5a5', fontSize: 15, fontWeight: '800', marginBottom: 4 }}>
+            Bookshelf Detection Warning
+          </Text>
+          <Text style={{ color: '#f8fafc', fontSize: 14, lineHeight: 20 }}>
+            {guardrailAlert}
+          </Text>
+
+          <TouchableOpacity
+            onPress={handleRetake}
+            style={{
+              backgroundColor: '#ef4444',
+              paddingVertical: 10,
+              paddingHorizontal: 16,
+              borderRadius: 10,
+              alignSelf: 'flex-start',
+              marginTop: 12,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <Ionicons name="refresh-outline" size={16} color="#ffffff" />
+            <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 13 }}>
+              Retake / Try Another Photo
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+
+  const renderPreviewBox = () => (
+    <View
+      style={{
+        height: isLandscape ? 360 : 320,
+        aspectRatio: isLandscape ? 16 / 9 : undefined,
+        width: '100%',
+        backgroundColor: '#0f172a',
+        borderRadius: 24,
+        overflow: 'hidden',
+        borderWidth: 2,
+        borderColor: isAnalyzing ? '#38bdf8' : '#334155',
+        justifyContent: 'center',
+        alignItems: 'center',
+        position: 'relative',
+        marginBottom: isLandscape ? 0 : 20,
+      }}
+    >
+      {capturedImageUri ? (
+        /* Image Preview Mode with Scanning Overlay */
+        <View style={{ width: '100%', height: '100%', position: 'relative' }}>
+          <Image
+            source={{ uri: capturedImageUri }}
+            style={{ width: '100%', height: '100%', resizeMode: 'contain' }}
+          />
+
+          {/* Scanning Animation & Status Overlay */}
+          {isAnalyzing && (
+            <View
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(15, 23, 42, 0.75)',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 20,
+              }}
+            >
+              <ActivityIndicator size="large" color="#38bdf8" style={{ marginBottom: 16 }} />
+              <Text style={{ color: '#f8fafc', fontSize: 16, fontWeight: '800', textAlign: 'center' }}>
+                Scanning Bookshelf Photo...
+              </Text>
+              <Text style={{ color: '#38bdf8', fontSize: 14, fontWeight: '600', marginTop: 6, textAlign: 'center' }}>
+                {statusMessage}
+              </Text>
+            </View>
+          )}
+        </View>
+      ) : Platform.OS !== 'web' && hasCameraPermission ? (
+        /* Native Expo Camera View */
+        <CameraView ref={cameraRef} style={{ width: '100%', height: '100%' }}>
+          <View
+             style={{
+               flex: 1,
+               alignItems: 'center',
+               justifyContent: 'center',
+               backgroundColor: 'rgba(0,0,0,0.2)',
+             }}
+          >
+            <View
+              style={{
+                width: '85%',
+                height: '75%',
+                borderWidth: 2,
+                borderColor: 'rgba(56, 189, 248, 0.6)',
+                borderStyle: 'dashed',
+                borderRadius: 16,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Ionicons name="camera-outline" size={40} color="rgba(255,255,255,0.7)" />
+              <Text style={{ color: '#ffffff', fontSize: 13, marginTop: 8, fontWeight: '600' }}>
+                Align book spines inside frame
+              </Text>
+            </View>
+          </View>
+        </CameraView>
+      ) : Platform.OS === 'web' ? (
+        /* Web HTML5 Webcam Live View */
+        <View
+          style={{
+            width: '100%',
+            height: '100%',
+            position: 'relative',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
+              display: webCamActive ? 'block' : 'none',
+            }}
+          />
+
+          {!webCamActive && (
+            <View style={{ alignItems: 'center', padding: 24 }}>
+              <Ionicons name="images-outline" size={56} color="#0284c7" />
+              <Text style={{ color: '#f8fafc', fontSize: 16, fontWeight: '700', marginTop: 12 }}>
+                Upload or Capture Photo
+              </Text>
+              <Text style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', marginTop: 6, maxWidth: 360 }}>
+                Select an existing photo of your bookshelf or use your device camera.
+              </Text>
+            </View>
+          )}
+        </View>
+      ) : (
+        <View style={{ alignItems: 'center', padding: 24 }}>
+          <Ionicons name="camera-outline" size={56} color="#0284c7" />
+          <Text style={{ color: '#f8fafc', fontSize: 16, fontWeight: '700', marginTop: 12 }}>
+            Camera Unavailable
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+
+  const renderActions = () => (
+    <View style={{ gap: 12, width: '100%' }}>
+      {capturedImageUri ? (
+        <TouchableOpacity
+          onPress={handleRetake}
+          disabled={isAnalyzing}
+          style={{
+            backgroundColor: '#1e293b',
+            borderColor: '#334155',
+            borderWidth: 1,
+            paddingVertical: 14,
+            borderRadius: 14,
+            alignItems: 'center',
+            flexDirection: 'row',
+            justifyContent: 'center',
+            gap: 8,
+            width: '100%',
+          }}
+        >
+          <Ionicons name="refresh-outline" size={20} color="#38bdf8" />
+          <Text style={{ color: '#38bdf8', fontWeight: '800', fontSize: 15 }}>
+            Retake / Select Another Photo
+          </Text>
+        </TouchableOpacity>
+      ) : (
+        <View style={{ flexDirection: 'row', gap: 12, width: '100%' }}>
+          <TouchableOpacity
+            onPress={handleTakePhoto}
+            style={{
+              flex: 1,
+              backgroundColor: '#0284c7',
+              paddingVertical: 14,
+              borderRadius: 14,
+              alignItems: 'center',
+              flexDirection: 'row',
+              justifyContent: 'center',
+              gap: 8,
+            }}
+          >
+            <Ionicons name="camera" size={20} color="#ffffff" />
+            <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 15 }}>
+              Take Photo
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => {
+              if (Platform.OS === 'web' && fileInputRef.current) {
+                fileInputRef.current.click();
+              } else {
+                // Dev mock image selection for web/native testing
+                processBookshelfPhoto(
+                  'https://covers.openlibrary.org/b/isbn/9780743273565-L.jpg',
+                  'mock-bookshelf.jpg'
+                );
+              }
+            }}
+            style={{
+              flex: 1,
+              backgroundColor: '#1e293b',
+              borderColor: '#334155',
+              borderWidth: 1,
+              paddingVertical: 14,
+              borderRadius: 14,
+              alignItems: 'center',
+              flexDirection: 'row',
+              justifyContent: 'center',
+              gap: 8,
+            }}
+          >
+            <Ionicons name="images-outline" size={20} color="#38bdf8" />
+            <Text style={{ color: '#38bdf8', fontWeight: '800', fontSize: 15 }}>
+              Upload Image
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+
   return (
     <ScrollView contentContainerStyle={{ padding: 16, alignItems: 'center' }}>
       {/* Hidden File Input for Gallery / Device Upload */}
@@ -203,268 +474,29 @@ export const BookshelfScanner: React.FC<BookshelfScannerProps> = ({ onBookCatalo
         />
       )}
 
-      <View style={{ width: '100%', maxWidth: 640 }}>
-        {/* Header */}
-        <View style={{ marginBottom: 16 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <Ionicons name="sparkles" size={24} color="#38bdf8" />
-            <Text style={{ color: '#f8fafc', fontSize: 24, fontWeight: '800' }}>
-              Bookshelf Photo AI Scanner
-            </Text>
-          </View>
-          <Text style={{ color: '#94a3b8', fontSize: 14 }}>
-            Take or upload a photo of your bookshelf. Our Gemini Vision AI extracts book titles &
-            authors automatically!
-          </Text>
-        </View>
-
-        {/* Guardrail Feedback Alert Box */}
-        {guardrailAlert && (
-          <View
-            style={{
-              backgroundColor: 'rgba(239, 68, 68, 0.12)',
-              borderColor: '#ef4444',
-              borderWidth: 1.5,
-              padding: 16,
-              borderRadius: 16,
-              marginBottom: 20,
-            }}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
-              <Ionicons name="warning-outline" size={24} color="#fca5a5" />
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: '#fca5a5', fontSize: 15, fontWeight: '800', marginBottom: 4 }}>
-                  Bookshelf Detection Warning
-                </Text>
-                <Text style={{ color: '#f8fafc', fontSize: 14, lineHeight: 20 }}>
-                  {guardrailAlert}
-                </Text>
-
-                <TouchableOpacity
-                  onPress={handleRetake}
-                  style={{
-                    backgroundColor: '#ef4444',
-                    paddingVertical: 10,
-                    paddingHorizontal: 16,
-                    borderRadius: 10,
-                    alignSelf: 'flex-start',
-                    marginTop: 12,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 6,
-                  }}
-                >
-                  <Ionicons name="refresh-outline" size={16} color="#ffffff" />
-                  <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 13 }}>
-                    Retake / Try Another Photo
-                  </Text>
-                </TouchableOpacity>
-              </View>
+      <View style={{ width: '100%', maxWidth: isLandscape ? 960 : 640 }}>
+        {isLandscape ? (
+          <View style={{ flexDirection: 'row', gap: 24, width: '100%', alignItems: 'flex-start' }}>
+            {/* Left Side: Camera / Image Preview Box */}
+            <View style={{ flex: 1.3, width: '100%' }}>
+              {renderPreviewBox()}
             </View>
+
+            {/* Right Side: Header + Warnings + Actions */}
+            <View style={{ flex: 1, width: '100%', gap: 20 }}>
+              {renderHeader()}
+              {renderGuardrail()}
+              {renderActions()}
+            </View>
+          </View>
+        ) : (
+          <View style={{ width: '100%' }}>
+            {renderHeader()}
+            {renderGuardrail()}
+            {renderPreviewBox()}
+            {renderActions()}
           </View>
         )}
-
-        {/* Camera / Image Preview Box */}
-        <View
-          style={{
-            height: 320,
-            backgroundColor: '#0f172a',
-            borderRadius: 24,
-            overflow: 'hidden',
-            borderWidth: 2,
-            borderColor: isAnalyzing ? '#38bdf8' : '#334155',
-            justifyContent: 'center',
-            alignItems: 'center',
-            position: 'relative',
-            marginBottom: 20,
-          }}
-        >
-          {capturedImageUri ? (
-            /* Image Preview Mode with Scanning Overlay */
-            <View style={{ width: '100%', height: '100%', position: 'relative' }}>
-              <Image
-                source={{ uri: capturedImageUri }}
-                style={{ width: '100%', height: '100%', resizeMode: 'cover' }}
-              />
-
-              {/* Scanning Animation & Status Overlay */}
-              {isAnalyzing && (
-                <View
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    backgroundColor: 'rgba(15, 23, 42, 0.75)',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: 20,
-                  }}
-                >
-                  <ActivityIndicator size="large" color="#38bdf8" style={{ marginBottom: 16 }} />
-                  <Text style={{ color: '#f8fafc', fontSize: 16, fontWeight: '800', textAlign: 'center' }}>
-                    Scanning Bookshelf Photo...
-                  </Text>
-                  <Text style={{ color: '#38bdf8', fontSize: 14, fontWeight: '600', marginTop: 6, textAlign: 'center' }}>
-                    {statusMessage}
-                  </Text>
-                </View>
-              )}
-            </View>
-          ) : Platform.OS !== 'web' && hasCameraPermission ? (
-            /* Native Expo Camera View */
-            <CameraView ref={cameraRef} style={{ width: '100%', height: '100%' }}>
-              <View
-                style={{
-                  flex: 1,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: 'rgba(0,0,0,0.2)',
-                }}
-              >
-                <View
-                  style={{
-                    width: '85%',
-                    height: '75%',
-                    borderWidth: 2,
-                    borderColor: 'rgba(56, 189, 248, 0.6)',
-                    borderStyle: 'dashed',
-                    borderRadius: 16,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <Ionicons name="camera-outline" size={40} color="rgba(255,255,255,0.7)" />
-                  <Text style={{ color: '#ffffff', fontSize: 13, marginTop: 8, fontWeight: '600' }}>
-                    Align book spines inside frame
-                  </Text>
-                </View>
-              </View>
-            </CameraView>
-          ) : Platform.OS === 'web' ? (
-            /* Web HTML5 Webcam Live View */
-            <View
-              style={{
-                width: '100%',
-                height: '100%',
-                position: 'relative',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  display: webCamActive ? 'block' : 'none',
-                }}
-              />
-
-              {!webCamActive && (
-                <View style={{ alignItems: 'center', padding: 24 }}>
-                  <Ionicons name="images-outline" size={56} color="#0284c7" />
-                  <Text style={{ color: '#f8fafc', fontSize: 16, fontWeight: '700', marginTop: 12 }}>
-                    Upload or Capture Photo
-                  </Text>
-                  <Text style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', marginTop: 6, maxWidth: 360 }}>
-                    Select an existing photo of your bookshelf or use your device camera.
-                  </Text>
-                </View>
-              )}
-            </View>
-          ) : (
-            <View style={{ alignItems: 'center', padding: 24 }}>
-              <Ionicons name="camera-outline" size={56} color="#0284c7" />
-              <Text style={{ color: '#f8fafc', fontSize: 16, fontWeight: '700', marginTop: 12 }}>
-                Camera Unavailable
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Action Button Controls */}
-        <View style={{ gap: 12 }}>
-          {capturedImageUri ? (
-            <TouchableOpacity
-              onPress={handleRetake}
-              disabled={isAnalyzing}
-              style={{
-                backgroundColor: '#1e293b',
-                borderColor: '#334155',
-                borderWidth: 1,
-                paddingVertical: 14,
-                borderRadius: 14,
-                alignItems: 'center',
-                flexDirection: 'row',
-                justifyContent: 'center',
-                gap: 8,
-              }}
-            >
-              <Ionicons name="refresh-outline" size={20} color="#38bdf8" />
-              <Text style={{ color: '#38bdf8', fontWeight: '800', fontSize: 15 }}>
-                Retake / Select Another Photo
-              </Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <TouchableOpacity
-                onPress={handleTakePhoto}
-                style={{
-                  flex: 1,
-                  backgroundColor: '#0284c7',
-                  paddingVertical: 14,
-                  borderRadius: 14,
-                  alignItems: 'center',
-                  flexDirection: 'row',
-                  justifyContent: 'center',
-                  gap: 8,
-                }}
-              >
-                <Ionicons name="camera" size={20} color="#ffffff" />
-                <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 15 }}>
-                  Take Photo
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => {
-                  if (Platform.OS === 'web' && fileInputRef.current) {
-                    fileInputRef.current.click();
-                  } else {
-                    // Dev mock image selection for web/native testing
-                    processBookshelfPhoto(
-                      'https://covers.openlibrary.org/b/isbn/9780743273565-L.jpg',
-                      'mock-bookshelf.jpg'
-                    );
-                  }
-                }}
-                style={{
-                  flex: 1,
-                  backgroundColor: '#1e293b',
-                  borderColor: '#334155',
-                  borderWidth: 1,
-                  paddingVertical: 14,
-                  borderRadius: 14,
-                  alignItems: 'center',
-                  flexDirection: 'row',
-                  justifyContent: 'center',
-                  gap: 8,
-                }}
-              >
-                <Ionicons name="images-outline" size={20} color="#38bdf8" />
-                <Text style={{ color: '#38bdf8', fontWeight: '800', fontSize: 15 }}>
-                  Upload Image
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
 
         {/* Review Modal */}
         <BookshelfReviewModal
