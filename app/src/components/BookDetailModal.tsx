@@ -26,15 +26,26 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
   onClose,
 }) => {
   const { updateBookReview, deleteBook } = useLibrary();
-  if (!book) return null;
 
-  const [rating, setRating] = useState<number>(book.rating || 0);
-  const [review, setReview] = useState<string>(book.review || '');
-  const [readStatus, setReadStatus] = useState<ReadStatus>(book.readStatus);
+  const [rating, setRating] = useState<number>(book?.rating || 0);
+  const [review, setReview] = useState<string>(book?.review || '');
+  const [readStatus, setReadStatus] = useState<ReadStatus>(book?.readStatus || 'unread');
   const [isEditingReview, setIsEditingReview] = useState<boolean>(false);
 
+  React.useEffect(() => {
+    if (book) {
+      setRating(book.rating || 0);
+      setReview(book.review || '');
+      setReadStatus(book.readStatus || 'unread');
+      setIsEditingReview(false);
+    }
+  }, [book]);
+
+  if (!visible || !book) return null;
+
   const handleSaveReview = () => {
-    updateBookReview(book.id!, {
+    if (!book.id) return;
+    updateBookReview(book.id, {
       readStatus,
       rating: rating > 0 ? rating : null,
       review: review.trim() || undefined,
@@ -44,8 +55,9 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
   };
 
   const handleDelete = () => {
+    if (!book.id) return;
     if (confirm(`Are you sure you want to delete "${book.title}" from your library?`)) {
-      deleteBook(book.id!);
+      deleteBook(book.id);
       onClose();
     }
   };

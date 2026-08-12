@@ -113,3 +113,91 @@ export async function fetchBookByISBN(
     return null;
   }
 }
+
+/**
+ * Searches Open Library API by title and optional author.
+ */
+export async function searchBooksByTitleAndAuthor(
+  title: string,
+  author?: string,
+  fetchFn: typeof fetch = globalThis.fetch
+): Promise<SanitizedBookMetadata[]> {
+  const cleanTitle = title.trim();
+  if (!cleanTitle) return [];
+
+  try {
+    let url = `https://openlibrary.org/search.json?title=${encodeURIComponent(cleanTitle)}`;
+    if (author && author.trim()) {
+      url += `&author=${encodeURIComponent(author.trim())}`;
+    }
+    url += '&limit=5';
+
+    const response = await fetchFn(url, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'LibrarianApp/1.0 (https://github.com/librarian-app)',
+      },
+    });
+
+    if (!response.ok) return [];
+
+    const data = await response.json();
+    if (!data.docs || !Array.isArray(data.docs)) return [];
+
+    const results: SanitizedBookMetadata[] = [];
+    for (const doc of data.docs) {
+      let isbn = '';
+      if (Array.isArray(doc.isbn) && doc.isbn.length > 0) {
+        const validIsbn = doc.isbn.find((i: string) => isValidIsbnFormat(i));
+        if (validIsbn) isbn = sanitizeIsbn(validIsbn);
+      }
+
+      let coverUrl: string | null = null;
+      if (doc.cover_i) {
+        coverUrl = `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`;
+      } else if (isbn) {
+        coverUrl = getCoverUrlByIsbn(isbn, 'L');
+      }
+
+      let workKey: string | null = null;
+      if (doc.key) {
+        workKey = doc.key.startsWith('/works/') ? doc.key.replace('/works/', '') : doc.key;
+      }
+
+      const authors = Array.isArray(doc.author_name) && doc.author_name.length > 0
+        ? doc.author_name
+        : author ? [author] : ['Unknown Author'];
+
+      const publisher = Array.isArray(doc.publisher) && doc.publisher.length > 0
+        ? doc.publisher[0]
+        : 'Unknown Publisher';
+
+      const publishDate = Array.isArray(doc.publish_date) && doc.publish_date.length > 0
+        ? doc.publish_date[0]
+        : doc.first_publish_year ? String(doc.first_publish_year) : 'Unknown';
+
+      results.push({
+        isbn,
+        title: doc.title || cleanTitle,
+        subtitle: doc.subtitle || null,
+        authors,
+        coverUrl,
+        publisher,
+        publishDate,
+        pageCount: typeof doc.number_of_pages_median === 'number' ? doc.number_of_pages_median : 0,
+        description: typeof doc.first_sentence === 'string' ? doc.first_sentence : null,
+        categories: Array.isArray(doc.subject) ? doc.subject.slice(0, 5) : null,
+        language: Array.isArray(doc.language) && doc.language.length > 0 ? doc.language[0] : 'en',
+        workKey,
+      });
+    }
+
+    return results;
+  } catch (err) {
+    if (process.env.NODE_ENV !== 'test') {
+      console.error('Error searching Open Library by title and author:', err);
+    }
+    return [];
+  }
+}
+

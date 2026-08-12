@@ -51,6 +51,14 @@ data "archive_file" "google_books_lambda" {
   output_path = "${path.module}/build/googleBooks.zip"
 }
 
+data "archive_file" "bookshelf_ai_lambda" {
+  depends_on  = [terraform_data.build_backend]
+  type        = "zip"
+  source_file = "${path.module}/../backend/dist/handlers/bookshelfAi.js"
+  output_path = "${path.module}/build/bookshelfAi.zip"
+}
+
+
 # Standard Lambda AssumeRole Policy Document
 data "aws_iam_policy_document" "lambda_assume_role" {
   statement {
@@ -300,6 +308,132 @@ resource "aws_lambda_function" "google_books" {
   timeout          = 15
 }
 
+# --- 4c. Bedrock Content Guardrail for Bookshelf AI Scanner ---
+resource "aws_bedrock_guardrail" "bookshelf_guardrail" {
+  name                      = "${local.name_prefix}-bookshelf-guardrail"
+  description               = "Bedrock content guardrail for Bookshelf AI Scanner"
+  blocked_input_messaging   = "Image scan rejected: The provided content does not appear to be a bookshelf or book collection."
+  blocked_outputs_messaging = "Response blocked due to content guardrail policy."
+
+  content_policy_config {
+    filters_config {
+      type            = "SEXUAL"
+      input_strength  = "HIGH"
+      output_strength = "HIGH"
+    }
+    filters_config {
+      type            = "VIOLENCE"
+      input_strength  = "HIGH"
+      output_strength = "HIGH"
+    }
+    filters_config {
+      type            = "HATE"
+      input_strength  = "HIGH"
+      output_strength = "HIGH"
+    }
+    filters_config {
+      type            = "MISCONDUCT"
+      input_strength  = "HIGH"
+      output_strength = "HIGH"
+    }
+    filters_config {
+      type            = "PROMPT_ATTACK"
+      input_strength  = "HIGH"
+      output_strength = "NONE"
+    }
+  }
+
+  topic_policy_config {
+    topics_config {
+      name       = "non_bookshelf_content"
+      definition = "Content or queries unrelated to books, bookshelves, libraries, or book spines."
+      type       = "DENY"
+      examples = [
+        "How do I repair a car engine?",
+        "Pictures of non-book objects or unrelated subjects"
+      ]
+    }
+  }
+}
+
+resource "aws_bedrock_guardrail_version" "bookshelf_guardrail" {
+  guardrail_arn = aws_bedrock_guardrail.bookshelf_guardrail.guardrail_arn
+  description   = "Initial version of bookshelf scanner guardrail"
+}
+
+# --- 4d. Bookshelf AI Scanner Lambda & IAM Role ---
+resource "aws_iam_role" "bookshelf_ai_lambda_role" {
+  name               = "${local.name_prefix}-bookshelf-ai-lambda-role"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+}
+
+resource "aws_iam_role_policy_attachment" "bookshelf_ai_lambda_basic" {
+  role       = aws_iam_role.bookshelf_ai_lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_policy" "bookshelf_ai_policy" {
+  name        = "${local.name_prefix}-bookshelf-ai-policy"
+  description = "Bedrock model/guardrail and S3 bucket access policy for Bookshelf AI Lambda"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "bedrock:InvokeModel",
+          "bedrock:ApplyGuardrail"
+        ]
+        Resource = [
+          "arn:aws:bedrock:*::foundation-model/anthropic.claude-3-5-sonnet-*",
+          "arn:aws:bedrock:*:*:foundation-model/us.anthropic.claude-3-5-sonnet-20241022-v2:0",
+          aws_bedrock_guardrail.bookshelf_guardrail.guardrail_arn,
+          "*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject"
+        ]
+        Resource = [
+          "${aws_s3_bucket.bookshelf_uploads.arn}/*"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "bookshelf_ai_lambda_permissions" {
+  role       = aws_iam_role.bookshelf_ai_lambda_role.name
+  policy_arn = aws_iam_policy.bookshelf_ai_policy.arn
+}
+
+resource "aws_lambda_function" "bookshelf_ai" {
+  filename         = data.archive_file.bookshelf_ai_lambda.output_path
+  source_code_hash = data.archive_file.bookshelf_ai_lambda.output_base64sha256
+  function_name    = "${local.name_prefix}-bookshelf-ai-service"
+  role             = aws_iam_role.bookshelf_ai_lambda_role.arn
+  handler          = "bookshelfAi.handler"
+  runtime          = "nodejs20.x"
+  timeout          = 60
+  memory_size      = 512
+
+  environment {
+    variables = {
+      BOOKSHELF_BUCKET_NAME     = aws_s3_bucket.bookshelf_uploads.id
+      BOOKSHELF_UPLOAD_BUCKET   = aws_s3_bucket.bookshelf_uploads.id
+      BEDROCK_MODEL_ID          = "us.anthropic.claude-3-5-sonnet-20241022-v2:0"
+      BEDROCK_GUARDRAIL_ID      = aws_bedrock_guardrail.bookshelf_guardrail.guardrail_id
+      BEDROCK_GUARDRAIL_VERSION = aws_bedrock_guardrail_version.bookshelf_guardrail.version
+    }
+  }
+}
+
+
 # --- 5. AWS API Gateway v2 (HTTP API) & Cognito JWT Authorizer ---
 resource "aws_apigatewayv2_api" "main" {
   name          = "${local.name_prefix}-http-api"
@@ -366,6 +500,14 @@ resource "aws_apigatewayv2_integration" "google_books" {
   integration_uri        = aws_lambda_function.google_books.invoke_arn
   payload_format_version = "2.0"
 }
+
+resource "aws_apigatewayv2_integration" "bookshelf_ai" {
+  api_id                 = aws_apigatewayv2_api.main.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.bookshelf_ai.invoke_arn
+  payload_format_version = "2.0"
+}
+
 
 # --- 7. API Gateway Routes ---
 resource "aws_apigatewayv2_route" "books_get" {
@@ -484,6 +626,23 @@ resource "aws_apigatewayv2_route" "google_books_series_catalog" {
   authorization_type = "NONE"
 }
 
+resource "aws_apigatewayv2_route" "bookshelf_presigned_url" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "POST /bookshelf/presigned-url"
+  target             = "integrations/${aws_apigatewayv2_integration.bookshelf_ai.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
+}
+
+resource "aws_apigatewayv2_route" "bookshelf_analyze" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "POST /bookshelf/analyze"
+  target             = "integrations/${aws_apigatewayv2_integration.bookshelf_ai.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
+}
+
+
 # --- 8. Lambda Invocation Permissions for API Gateway ---
 resource "aws_lambda_permission" "api_gateway_books" {
   statement_id  = "AllowExecutionFromAPIGateway"
@@ -524,3 +683,12 @@ resource "aws_lambda_permission" "api_gateway_google_books" {
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
 }
+
+resource "aws_lambda_permission" "api_gateway_bookshelf_ai" {
+  statement_id  = "AllowExecutionFromAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.bookshelf_ai.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
+}
+

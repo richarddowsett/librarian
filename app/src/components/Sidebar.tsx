@@ -11,7 +11,7 @@ export const Sidebar: React.FC = () => {
 
   const navItems = [
     { label: 'Library Catalogue', path: '/', icon: 'book-sharp' as const },
-    { label: 'Scan ISBN Barcode', path: '/scan', icon: 'barcode-sharp' as const },
+    { label: 'AI & Barcode Scanner', path: '/scan', icon: 'barcode-sharp' as const },
     { label: 'Series Tracker', path: '/series', icon: 'layers-sharp' as const },
     { label: 'Profile & Settings', path: '/profile', icon: 'person-sharp' as const },
   ];

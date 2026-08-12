@@ -271,3 +271,80 @@ export async function fetchSeriesCatalogFromGoogle(
     return [];
   }
 }
+
+/**
+ * Searches Google Books API by title and optional author.
+ * Formats query string as q=intitle:${title}+inauthor:${author}
+ */
+export async function searchBooksByTitleAndAuthor(
+  title: string,
+  author?: string,
+  fetchFn: typeof fetch = globalThis.fetch
+): Promise<SanitizedBookMetadata[]> {
+  const cleanTitle = title.trim();
+  if (!cleanTitle) return [];
+
+  try {
+    const apiKey = await getGoogleBooksApiKey();
+    const keyParam = apiKey ? `&key=${apiKey}` : '';
+    let query = `intitle:${encodeURIComponent(cleanTitle)}`;
+    if (author && author.trim()) {
+      query += `+inauthor:${encodeURIComponent(author.trim())}`;
+    }
+
+    const url = `https://www.googleapis.com/books/v1/volumes?q=${query}&langRestrict=en&maxResults=5${keyParam}`;
+
+    const response = await fetchFn(url, {
+      headers: { Accept: 'application/json' },
+    });
+
+    if (!response.ok) return [];
+
+    const data = await response.json();
+    if (!data.items || !Array.isArray(data.items)) return [];
+
+    const results: SanitizedBookMetadata[] = [];
+    for (const item of data.items) {
+      const volumeInfo = item.volumeInfo || {};
+      if (!isEnglishBookMetadata(volumeInfo)) continue;
+
+      const isbnObj = Array.isArray(volumeInfo.industryIdentifiers)
+        ? volumeInfo.industryIdentifiers.find((i: any) => i.type === 'ISBN_13' || i.type === 'ISBN_10')
+        : undefined;
+
+      const rawIsbn = isbnObj?.identifier || '';
+      const isbn = sanitizeIsbn(rawIsbn);
+
+      const coverUrl =
+        volumeInfo.imageLinks?.extraLarge ||
+        volumeInfo.imageLinks?.large ||
+        volumeInfo.imageLinks?.medium ||
+        volumeInfo.imageLinks?.thumbnail ||
+        volumeInfo.imageLinks?.smallThumbnail ||
+        null;
+
+      results.push({
+        isbn,
+        title: volumeInfo.title || 'Untitled',
+        subtitle: volumeInfo.subtitle || null,
+        authors: Array.isArray(volumeInfo.authors) && volumeInfo.authors.length > 0 ? volumeInfo.authors : [author || 'Unknown Author'],
+        coverUrl: coverUrl ? coverUrl.replace(/^http:/, 'https:') : null,
+        publisher: volumeInfo.publisher || 'Unknown Publisher',
+        publishDate: volumeInfo.publishedDate || 'Unknown',
+        pageCount: typeof volumeInfo.pageCount === 'number' ? volumeInfo.pageCount : 0,
+        description: volumeInfo.description ? volumeInfo.description.replace(/<[^>]*>?/gm, '').trim() : null,
+        categories: Array.isArray(volumeInfo.categories) ? volumeInfo.categories : null,
+        language: volumeInfo.language || null,
+        workKey: item.id || null,
+      });
+    }
+
+    return results;
+  } catch (err) {
+    if (process.env.NODE_ENV !== 'test') {
+      console.error('Error searching Google Books by title and author:', err);
+    }
+    return [];
+  }
+}
+

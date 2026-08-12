@@ -59,6 +59,11 @@ output "waf_web_acl_arn" {
   value       = aws_wafv2_web_acl.main.arn
 }
 
+output "bookshelf_uploads_s3_bucket" {
+  description = "Name of the S3 bucket storing user uploaded bookshelf images."
+  value       = aws_s3_bucket.bookshelf_uploads.id
+}
+
 # ------------------------------------------------------------------------------
 # Output Values: Serverless Backend (backend.tf)
 # ------------------------------------------------------------------------------

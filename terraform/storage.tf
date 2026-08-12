@@ -62,3 +62,52 @@ resource "aws_wafv2_web_acl" "main" {
     sampled_requests_enabled   = true
   }
 }
+
+# ------------------------------------------------------------------------------
+# Bookshelf AI Scanner - Upload Storage Bucket
+# ------------------------------------------------------------------------------
+
+# 1. S3 Bucket for Storing User Uploaded Bookshelf Images
+resource "aws_s3_bucket" "bookshelf_uploads" {
+  bucket        = "${local.name_prefix}-bookshelf-uploads"
+  force_destroy = true
+}
+
+# 2. CORS Configuration for Direct S3 Presigned URL Uploads
+resource "aws_s3_bucket_cors_configuration" "bookshelf_uploads" {
+  bucket = aws_s3_bucket.bookshelf_uploads.id
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["PUT", "GET", "POST", "HEAD"]
+    allowed_origins = ["*"]
+    max_age_seconds = 3000
+  }
+}
+
+# 3. Lifecycle Rule for Auto-Deleting Uploaded Images After 1 Day
+resource "aws_s3_bucket_lifecycle_configuration" "bookshelf_uploads" {
+  bucket = aws_s3_bucket.bookshelf_uploads.id
+
+  rule {
+    id     = "auto-delete-after-1-day"
+    status = "Enabled"
+
+    filter {}
+
+    expiration {
+      days = 1
+    }
+  }
+}
+
+# 4. Block Public Access Controls
+resource "aws_s3_bucket_public_access_block" "bookshelf_uploads" {
+  bucket = aws_s3_bucket.bookshelf_uploads.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
