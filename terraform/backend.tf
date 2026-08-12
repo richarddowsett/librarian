@@ -377,7 +377,7 @@ resource "aws_lambda_function" "bookshelf_ai" {
       BOOKSHELF_BUCKET_NAME   = aws_s3_bucket.bookshelf_uploads.id
       BOOKSHELF_UPLOAD_BUCKET = aws_s3_bucket.bookshelf_uploads.id
       GEMINI_SECRET_NAME      = aws_secretsmanager_secret.gemini_api_key.name
-      GEMINI_MODEL_ID         = "gemini-2.5-flash"
+      GEMINI_MODEL_ID         = "gemini-3.5-flash"
     }
   }
 }

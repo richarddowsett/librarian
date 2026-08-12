@@ -10,7 +10,7 @@ export interface GeminiServiceOptions {
   secretsClient?: SecretsManagerClient;
 }
 
-const DEFAULT_MODEL_ID = 'gemini-2.5-flash';
+const DEFAULT_MODEL_ID = 'gemini-3.5-flash';
 
 let s3ClientInstance: S3Client | null = null;
 let secretsClientInstance: SecretsManagerClient | null = null;

@@ -106,7 +106,7 @@ describe('Gemini AI Service', () => {
       expect(mockGenerateContent).toHaveBeenCalledTimes(1);
 
       const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.model).toBe('gemini-2.5-flash');
+      expect(callArgs.model).toBe('gemini-3.5-flash');
       expect(callArgs.config.systemInstruction).toBe(BOOKSHELF_ANALYSIS_SYSTEM_PROMPT);
       expect(callArgs.config.responseMimeType).toBe('application/json');
 
