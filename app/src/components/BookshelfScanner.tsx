@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Camera, CameraView } from 'expo-camera';
+import * as ImagePicker from 'expo-image-picker';
 import {
   getPresignedUploadUrl,
   uploadImageToS3,
@@ -28,7 +28,7 @@ export const BookshelfScanner: React.FC<BookshelfScannerProps> = ({ onBookCatalo
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
   const { user, authToken } = useAuth();
-  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+
   const [capturedImageUri, setCapturedImageUri] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<string>('');
@@ -38,58 +38,98 @@ export const BookshelfScanner: React.FC<BookshelfScannerProps> = ({ onBookCatalo
   const [detectedBooks, setDetectedBooks] = useState<BookshelfCandidateBook[]>([]);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState<boolean>(false);
 
-  // Native & Web Refs
-  const cameraRef = useRef<any>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [webCamActive, setWebCamActive] = useState<boolean>(false);
-  const [webCamError, setWebCamError] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      if (Platform.OS !== 'web') {
-        const { status } = await Camera.requestCameraPermissionsAsync();
-        setHasCameraPermission(status === 'granted');
-      } else {
-        setHasCameraPermission(true);
-      }
-    })();
-  }, []);
-
-  // Web Webcam initialization
-  useEffect(() => {
-    let stream: MediaStream | null = null;
-    if (Platform.OS === 'web' && !capturedImageUri) {
-      (async () => {
-        try {
-          if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            stream = await navigator.mediaDevices.getUserMedia({
-              video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-            });
-            if (videoRef.current) {
-              videoRef.current.srcObject = stream;
-              await videoRef.current.play().catch(() => {});
-              setWebCamActive(true);
-              setWebCamError(null);
-            }
+  const handleLaunchCamera = async () => {
+    setGuardrailAlert(null);
+    try {
+      if (Platform.OS === 'web') {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.setAttribute('capture', 'environment');
+        input.onchange = (e: any) => {
+          const file = e.target?.files?.[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              const uri = event.target?.result as string;
+              if (uri) {
+                setCapturedImageUri(uri);
+              }
+            };
+            reader.readAsDataURL(file);
           }
-        } catch (err) {
-          console.warn('Webcam stream access warning:', err);
-          setWebCamError('Webcam access is restricted or unavailable.');
-          setWebCamActive(false);
+        };
+        input.click();
+      } else {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+          setGuardrailAlert('Camera permission is required to take a photo.');
+          return;
         }
-      })();
-    }
 
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
+        const result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 0.85,
+        });
+
+        if (!result.canceled && result.assets?.[0]?.uri) {
+          setCapturedImageUri(result.assets[0].uri);
+        }
       }
-    };
-  }, [Platform.OS, capturedImageUri]);
+    } catch (err) {
+      console.error('Error launching camera:', err);
+      setGuardrailAlert('Failed to launch camera.');
+    }
+  };
 
-  const processBookshelfPhoto = async (imageUri: string, fileName: string = 'bookshelf.jpg') => {
-    setCapturedImageUri(imageUri);
+  const handleLaunchGallery = async () => {
+    setGuardrailAlert(null);
+    try {
+      if (Platform.OS === 'web') {
+        if (fileInputRef.current) {
+          fileInputRef.current.click();
+        }
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          setGuardrailAlert('Media library permission is required to choose a photo.');
+          return;
+        }
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 0.85,
+        });
+
+        if (!result.canceled && result.assets?.[0]?.uri) {
+          setCapturedImageUri(result.assets[0].uri);
+        }
+      }
+    } catch (err) {
+      console.error('Error launching library:', err);
+      setGuardrailAlert('Failed to open gallery.');
+    }
+  };
+
+  const handleFileChange = (e: any) => {
+    const file = e.target?.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const uri = event.target?.result as string;
+        if (uri) {
+          setCapturedImageUri(uri);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const processBookshelfPhoto = async () => {
+    if (!capturedImageUri) return;
+
     setIsAnalyzing(true);
     setGuardrailAlert(null);
     setStatusMessage('1/3 Requesting secure upload URL...');
@@ -99,13 +139,15 @@ export const BookshelfScanner: React.FC<BookshelfScannerProps> = ({ onBookCatalo
       userId: user?.uid,
     };
 
+    const fileName = `shelf-${Date.now()}.jpg`;
+
     try {
       // Step 1: Request presigned S3 URL
       const presigned = await getPresignedUploadUrl(fileName, 'image/jpeg', apiOptions);
 
       // Step 2: Upload image payload directly to S3
       setStatusMessage('2/3 Uploading image to S3 bucket...');
-      const uploadOk = await uploadImageToS3(presigned.uploadUrl, imageUri, 'image/jpeg');
+      const uploadOk = await uploadImageToS3(presigned.uploadUrl, capturedImageUri, 'image/jpeg');
 
       if (!uploadOk) {
         setIsAnalyzing(false);
@@ -137,56 +179,7 @@ export const BookshelfScanner: React.FC<BookshelfScannerProps> = ({ onBookCatalo
     }
   };
 
-  const handleTakePhoto = async () => {
-    setGuardrailAlert(null);
-
-    if (Platform.OS === 'web') {
-      if (videoRef.current) {
-        try {
-          const video = videoRef.current;
-          const canvas = document.createElement('canvas');
-          canvas.width = video.videoWidth || 1280;
-          canvas.height = video.videoHeight || 720;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-            await processBookshelfPhoto(dataUrl, `shelf-web-${Date.now()}.jpg`);
-          }
-        } catch (e) {
-          setGuardrailAlert('Could not capture webcam snapshot. Try uploading a photo instead.');
-        }
-      } else {
-        // Trigger file input fallback
-        fileInputRef.current?.click();
-      }
-    } else if (cameraRef.current) {
-      try {
-        const photo = await cameraRef.current.takePictureAsync({ quality: 0.85 });
-        if (photo?.uri) {
-          await processBookshelfPhoto(photo.uri, `shelf-native-${Date.now()}.jpg`);
-        }
-      } catch (e) {
-        setGuardrailAlert('Camera snapshot failed. Please retry.');
-      }
-    }
-  };
-
-  const handleFileChange = (e: any) => {
-    const file = e.target?.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const uri = event.target?.result as string;
-        if (uri) {
-          processBookshelfPhoto(uri, file.name || 'uploaded-bookshelf.jpg');
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleRetake = () => {
+  const handleClearPhoto = () => {
     setCapturedImageUri(null);
     setGuardrailAlert(null);
     setIsAnalyzing(false);
@@ -202,7 +195,7 @@ export const BookshelfScanner: React.FC<BookshelfScannerProps> = ({ onBookCatalo
         </Text>
       </View>
       <Text style={{ color: '#94a3b8', fontSize: 14 }}>
-        Take or upload a photo of your bookshelf. Our Gemini Vision AI extracts book titles &
+        Upload or take a photo of your bookshelf. Our Gemini Vision AI extracts book titles &
         authors automatically!
       </Text>
     </View>
@@ -231,7 +224,7 @@ export const BookshelfScanner: React.FC<BookshelfScannerProps> = ({ onBookCatalo
           </Text>
 
           <TouchableOpacity
-            onPress={handleRetake}
+            onPress={handleClearPhoto}
             style={{
               backgroundColor: '#ef4444',
               paddingVertical: 10,
@@ -246,7 +239,7 @@ export const BookshelfScanner: React.FC<BookshelfScannerProps> = ({ onBookCatalo
           >
             <Ionicons name="refresh-outline" size={16} color="#ffffff" />
             <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 13 }}>
-              Retake / Try Another Photo
+              Clear / Try Another Photo
             </Text>
           </TouchableOpacity>
         </View>
@@ -257,7 +250,7 @@ export const BookshelfScanner: React.FC<BookshelfScannerProps> = ({ onBookCatalo
   const renderPreviewBox = () => (
     <View
       style={{
-        height: isLandscape ? 360 : 320,
+        height: isLandscape ? 320 : 320,
         aspectRatio: isLandscape ? 16 / 9 : undefined,
         width: '100%',
         backgroundColor: '#0f172a',
@@ -265,10 +258,12 @@ export const BookshelfScanner: React.FC<BookshelfScannerProps> = ({ onBookCatalo
         overflow: 'hidden',
         borderWidth: 2,
         borderColor: isAnalyzing ? '#38bdf8' : '#334155',
+        borderStyle: capturedImageUri ? 'solid' : 'dashed',
         justifyContent: 'center',
         alignItems: 'center',
         position: 'relative',
         marginBottom: isLandscape ? 0 : 20,
+        padding: capturedImageUri ? 0 : 24,
       }}
     >
       {capturedImageUri ? (
@@ -304,79 +299,20 @@ export const BookshelfScanner: React.FC<BookshelfScannerProps> = ({ onBookCatalo
             </View>
           )}
         </View>
-      ) : Platform.OS !== 'web' && hasCameraPermission ? (
-        /* Native Expo Camera View */
-        <CameraView ref={cameraRef} style={{ width: '100%', height: '100%' }}>
-          <View
-             style={{
-               flex: 1,
-               alignItems: 'center',
-               justifyContent: 'center',
-               backgroundColor: 'rgba(0,0,0,0.2)',
-             }}
-          >
-            <View
-              style={{
-                width: '85%',
-                height: '75%',
-                borderWidth: 2,
-                borderColor: 'rgba(56, 189, 248, 0.6)',
-                borderStyle: 'dashed',
-                borderRadius: 16,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Ionicons name="camera-outline" size={40} color="rgba(255,255,255,0.7)" />
-              <Text style={{ color: '#ffffff', fontSize: 13, marginTop: 8, fontWeight: '600' }}>
-                Align book spines inside frame
-              </Text>
-            </View>
-          </View>
-        </CameraView>
-      ) : Platform.OS === 'web' ? (
-        /* Web HTML5 Webcam Live View */
-        <View
-          style={{
-            width: '100%',
-            height: '100%',
-            position: 'relative',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain',
-              display: webCamActive ? 'block' : 'none',
-            }}
-          />
-
-          {!webCamActive && (
-            <View style={{ alignItems: 'center', padding: 24 }}>
-              <Ionicons name="images-outline" size={56} color="#0284c7" />
-              <Text style={{ color: '#f8fafc', fontSize: 16, fontWeight: '700', marginTop: 12 }}>
-                Upload or Capture Photo
-              </Text>
-              <Text style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', marginTop: 6, maxWidth: 360 }}>
-                Select an existing photo of your bookshelf or use your device camera.
-              </Text>
-            </View>
-          )}
-        </View>
       ) : (
-        <View style={{ alignItems: 'center', padding: 24 }}>
-          <Ionicons name="camera-outline" size={56} color="#0284c7" />
-          <Text style={{ color: '#f8fafc', fontSize: 16, fontWeight: '700', marginTop: 12 }}>
-            Camera Unavailable
+        /* Empty Upload Zone State */
+        <TouchableOpacity
+          onPress={handleLaunchGallery}
+          style={{ alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}
+        >
+          <Ionicons name="cloud-upload-outline" size={56} color="#0284c7" />
+          <Text style={{ color: '#f8fafc', fontSize: 16, fontWeight: '700', marginTop: 12, textAlign: 'center' }}>
+            No Photo Selected
           </Text>
-        </View>
+          <Text style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', marginTop: 6, maxWidth: 360 }}>
+            Click to open your gallery, or use the buttons below to upload or take a bookshelf photo.
+          </Text>
+        </TouchableOpacity>
       )}
     </View>
   );
@@ -384,31 +320,59 @@ export const BookshelfScanner: React.FC<BookshelfScannerProps> = ({ onBookCatalo
   const renderActions = () => (
     <View style={{ gap: 12, width: '100%' }}>
       {capturedImageUri ? (
-        <TouchableOpacity
-          onPress={handleRetake}
-          disabled={isAnalyzing}
-          style={{
-            backgroundColor: '#1e293b',
-            borderColor: '#334155',
-            borderWidth: 1,
-            paddingVertical: 14,
-            borderRadius: 14,
-            alignItems: 'center',
-            flexDirection: 'row',
-            justifyContent: 'center',
-            gap: 8,
-            width: '100%',
-          }}
-        >
-          <Ionicons name="refresh-outline" size={20} color="#38bdf8" />
-          <Text style={{ color: '#38bdf8', fontWeight: '800', fontSize: 15 }}>
-            Retake / Select Another Photo
-          </Text>
-        </TouchableOpacity>
+        <View style={{ gap: 12, width: '100%' }}>
+          <TouchableOpacity
+            onPress={processBookshelfPhoto}
+            disabled={isAnalyzing}
+            style={{
+              backgroundColor: '#0284c7',
+              paddingVertical: 14,
+              borderRadius: 14,
+              alignItems: 'center',
+              flexDirection: 'row',
+              justifyContent: 'center',
+              gap: 8,
+              width: '100%',
+            }}
+          >
+            {isAnalyzing ? (
+              <ActivityIndicator size="small" color="#ffffff" />
+            ) : (
+              <>
+                <Ionicons name="sparkles" size={20} color="#ffffff" />
+                <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 15 }}>
+                  Scan Bookshelf with Gemini AI
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handleClearPhoto}
+            disabled={isAnalyzing}
+            style={{
+              backgroundColor: '#1e293b',
+              borderColor: '#334155',
+              borderWidth: 1,
+              paddingVertical: 14,
+              borderRadius: 14,
+              alignItems: 'center',
+              flexDirection: 'row',
+              justifyContent: 'center',
+              gap: 8,
+              width: '100%',
+            }}
+          >
+            <Ionicons name="refresh-outline" size={20} color="#38bdf8" />
+            <Text style={{ color: '#38bdf8', fontWeight: '800', fontSize: 15 }}>
+              Choose a Different Photo
+            </Text>
+          </TouchableOpacity>
+        </View>
       ) : (
         <View style={{ flexDirection: 'row', gap: 12, width: '100%' }}>
           <TouchableOpacity
-            onPress={handleTakePhoto}
+            onPress={handleLaunchCamera}
             style={{
               flex: 1,
               backgroundColor: '#0284c7',
@@ -427,17 +391,7 @@ export const BookshelfScanner: React.FC<BookshelfScannerProps> = ({ onBookCatalo
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => {
-              if (Platform.OS === 'web' && fileInputRef.current) {
-                fileInputRef.current.click();
-              } else {
-                // Dev mock image selection for web/native testing
-                processBookshelfPhoto(
-                  'https://covers.openlibrary.org/b/isbn/9780743273565-L.jpg',
-                  'mock-bookshelf.jpg'
-                );
-              }
-            }}
+            onPress={handleLaunchGallery}
             style={{
               flex: 1,
               backgroundColor: '#1e293b',
@@ -453,7 +407,7 @@ export const BookshelfScanner: React.FC<BookshelfScannerProps> = ({ onBookCatalo
           >
             <Ionicons name="images-outline" size={20} color="#38bdf8" />
             <Text style={{ color: '#38bdf8', fontWeight: '800', fontSize: 15 }}>
-              Upload Image
+              Choose from Gallery
             </Text>
           </TouchableOpacity>
         </View>
