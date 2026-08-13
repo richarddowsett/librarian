@@ -150,7 +150,7 @@ export default function LoginScreen() {
             LIBRARIAN
           </Text>
           <Text style={{ color: '#94a3b8', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
-            AWS Cognito User Authentication & Library Cloud
+            Your personal library organizer & bookshelf AI companion
           </Text>
         </View>
 
