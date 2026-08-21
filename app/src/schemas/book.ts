@@ -28,6 +28,8 @@ export const bookSchema = z.object({
   seriesId: z.string().optional().nullable(),
   seriesName: z.string().optional().nullable(),
   seriesVolumeNumber: z.number().int().positive().optional().nullable(),
+  workId: z.string().optional().nullable(),
+  bookId: z.string().optional().nullable(),
   dateAdded: z.string().datetime().or(z.string()).optional(),
   dateRead: z.string().datetime().or(z.string()).optional().nullable(),
 });
