@@ -255,10 +255,17 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
           allVolumes.push({
             volumeNumber: i,
             isOwned: false,
-            title: `Vol #${i}`,
+            title: `Book #${i}`,
           });
         }
       }
+
+      // Sort owned books at the front of the list, unowned after
+      allVolumes.sort((a, b) => {
+        if (a.isOwned && !b.isOwned) return -1;
+        if (!a.isOwned && b.isOwned) return 1;
+        return 0;
+      });
 
       result.push({
         seriesId,
@@ -283,7 +290,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       volumesList.forEach((vol: any, idx: number) => {
         const volNum = vol.volumeNumber || idx + 1;
-        const volTitle = vol.title || `Vol #${volNum}`;
+        const volTitle = vol.title || `Book #${volNum}`;
 
         const ownedBook = userBooks.find((b) => {
           if (b.seriesId === cSeries.id && b.seriesVolumeNumber === volNum) return true;
@@ -309,6 +316,13 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
             title: volTitle,
           });
         }
+      });
+
+      // Sort owned books at the front of the list, unowned after
+      allVolumes.sort((a, b) => {
+        if (a.isOwned && !b.isOwned) return -1;
+        if (!a.isOwned && b.isOwned) return 1;
+        return 0;
       });
 
       const overview: SeriesOverview = {

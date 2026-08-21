@@ -223,7 +223,7 @@ export default function SeriesTrackerScreen() {
                         {overview.seriesName}
                       </Text>
                       <Text style={{ color: '#94a3b8', fontSize: 13, marginTop: 2, includeFontPadding: false }}>
-                        Owned {overview.totalOwned} of {overview.maxVolumeOwned} volumes in sequence
+                        Owned {overview.totalOwned} of {overview.maxVolumeOwned} books in series list
                       </Text>
                     </View>
 
@@ -247,7 +247,7 @@ export default function SeriesTrackerScreen() {
                           includeFontPadding: false,
                         }}
                       >
-                        {hasMissing ? `${overview.missingVolumes.length} Missing` : 'Sequence Intact!'}
+                        {hasMissing ? `${overview.missingVolumes.length} Unowned` : 'Collection Complete!'}
                       </Text>
                     </View>
                   </View>
@@ -289,16 +289,16 @@ export default function SeriesTrackerScreen() {
                         marginBottom: 16,
                       }}
                     >
-                      <Ionicons name="warning-outline" size={20} color="#fbbf24" />
+                      <Ionicons name="alert-circle-outline" size={20} color="#fbbf24" />
                       <Text style={{ color: '#fbbf24', fontSize: 13, fontWeight: '600', flex: 1 }}>
-                        Missing Volumes: Vol {overview.missingVolumes.join(', Vol ')}
+                        {overview.missingVolumes.length} unowned {overview.missingVolumes.length === 1 ? 'book' : 'books'} in this list. Tap any card below to preview & add to library.
                       </Text>
                     </View>
                   )}
 
                   {/* Volumes Carousel */}
                   <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700', marginBottom: 10 }}>
-                    {showUnowned ? 'Series Volumes Sequence:' : 'Owned Volumes in Series:'}
+                    {showUnowned ? 'Series Books Collection:' : 'Owned Books in Series:'}
                   </Text>
 
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -309,7 +309,7 @@ export default function SeriesTrackerScreen() {
 
                         return (
                           <TouchableOpacity
-                            key={`vol-${volItem.volumeNumber}`}
+                            key={volItem.book?.id || `${volItem.title}-${volItem.volumeNumber}`}
                             activeOpacity={0.7}
                             onPress={() => {
                               if (isOwned && book) {
@@ -375,7 +375,7 @@ export default function SeriesTrackerScreen() {
                                   textAlign: 'center',
                                 }}
                               >
-                                {isOwned ? `Vol #${volItem.volumeNumber}` : 'Missing'}
+                                {isOwned ? 'Owned ✓' : 'Unowned'}
                               </Text>
                             </View>
 
@@ -388,7 +388,7 @@ export default function SeriesTrackerScreen() {
                               }}
                               numberOfLines={2}
                             >
-                              {isOwned && book ? book.title : `Vol #${volItem.volumeNumber}`}
+                              {isOwned && book ? book.title : volItem.title}
                             </Text>
                           </TouchableOpacity>
                         );
