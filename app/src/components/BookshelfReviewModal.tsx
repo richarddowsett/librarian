@@ -539,7 +539,7 @@ export const BookshelfReviewModal: React.FC<BookshelfReviewModalProps> = ({
                               marginTop: 6,
                             }}
                           >
-                            {book.isbn ? (
+                            {book.isbn && !book.isbn.startsWith('NOISBN') ? (
                               <Text style={{ color: '#64748b', fontSize: 11 }}>
                                 ISBN: {book.isbn}
                               </Text>

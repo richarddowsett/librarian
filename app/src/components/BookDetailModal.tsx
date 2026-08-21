@@ -8,10 +8,13 @@ import {
   ScrollView,
   TextInput,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Book, ReadStatus } from '../schemas/book';
 import { StarRating } from './StarRating';
 import { useLibrary } from '../context/LibraryContext';
+import { fetchWorkListsApi, OpenLibraryListSummary } from '../services/apiClient';
 import { Ionicons } from '@expo/vector-icons';
 
 interface BookDetailModalProps {
@@ -25,12 +28,49 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
   visible,
   onClose,
 }) => {
-  const { updateBookReview, deleteBook } = useLibrary();
+  const router = useRouter();
+  const { updateBookReview, deleteBook, addSeriesList, seriesOverviews } = useLibrary();
 
   const [rating, setRating] = useState<number>(book?.rating || 0);
   const [review, setReview] = useState<string>(book?.review || '');
   const [readStatus, setReadStatus] = useState<ReadStatus>(book?.readStatus || 'unread');
   const [isEditingReview, setIsEditingReview] = useState<boolean>(false);
+
+  const [topLists, setTopLists] = useState<OpenLibraryListSummary[]>([]);
+  const [loadingLists, setLoadingLists] = useState<boolean>(false);
+  const [addingListUrl, setAddingListUrl] = useState<string | null>(null);
+  const [addedListUrls, setAddedListUrls] = useState<Set<string>>(new Set());
+
+  const matchingSeries = React.useMemo(() => {
+    if (!book) return null;
+
+    if (book.seriesName) {
+      return {
+        seriesId: book.seriesId,
+        seriesName: book.seriesName,
+        volumeNumber: book.seriesVolumeNumber,
+      };
+    }
+
+    for (const overview of seriesOverviews) {
+      const isBookInSeries = overview.allVolumes.some((v) => {
+        if (v.book?.id === book.id) return true;
+        if (v.book?.workId && book.workId && v.book.workId.replace(/^\/works\//, '') === book.workId.replace(/^\/works\//, '')) return true;
+        if (v.book?.isbn && book.isbn && v.book.isbn.replace(/[- ]/g, '').toUpperCase() === book.isbn.replace(/[- ]/g, '').toUpperCase()) return true;
+        if (v.title && book.title && v.title.trim().toLowerCase() === book.title.trim().toLowerCase()) return true;
+        return false;
+      });
+      if (isBookInSeries) {
+        return {
+          seriesId: overview.seriesId,
+          seriesName: overview.seriesName,
+          volumeNumber: book.seriesVolumeNumber,
+        };
+      }
+    }
+
+    return null;
+  }, [book, seriesOverviews]);
 
   React.useEffect(() => {
     if (book) {
@@ -38,8 +78,37 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
       setReview(book.review || '');
       setReadStatus(book.readStatus || 'unread');
       setIsEditingReview(false);
+
+      const targetId = book.workId || (book.isbn && !book.isbn.startsWith('NOISBN') ? book.isbn : '');
+      if (targetId) {
+        setLoadingLists(true);
+        fetchWorkListsApi(targetId)
+          .then((lists) => setTopLists(lists))
+          .catch((err) => console.error('Failed to fetch OpenLibrary lists:', err))
+          .finally(() => setLoadingLists(false));
+      } else {
+        setTopLists([]);
+      }
     }
   }, [book]);
+
+  const handleAddListToSeries = async (list: OpenLibraryListSummary) => {
+    if (!list.url) return;
+    setAddingListUrl(list.url);
+    try {
+      const res = await addSeriesList(list.url, list.name, book?.workId || undefined);
+      if (res.success) {
+        setAddedListUrls((prev) => new Set(prev).add(list.url));
+        Alert.alert('Series Added!', `"${list.name}" has been added to your Series Collection.`);
+      } else {
+        Alert.alert('Error', res.error || 'Failed to add series list.');
+      }
+    } catch (e) {
+      console.error('Error adding list to series:', e);
+    } finally {
+      setAddingListUrl(null);
+    }
+  };
 
   if (!visible || !book) return null;
 
@@ -172,24 +241,33 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
                   By {book.authors.join(', ')}
                 </Text>
 
-                {book.seriesName && (
-                  <View
+                {matchingSeries ? (
+                  <TouchableOpacity
+                    onPress={() => {
+                      onClose();
+                      router.push('/(tabs)/series');
+                    }}
+                    activeOpacity={0.7}
                     style={{
                       alignSelf: 'flex-start',
-                      backgroundColor: 'rgba(2, 132, 199, 0.15)',
-                      borderColor: '#0284c7',
+                      backgroundColor: 'rgba(2, 132, 199, 0.2)',
+                      borderColor: '#38bdf8',
                       borderWidth: 1,
                       paddingHorizontal: 10,
-                      paddingVertical: 4,
+                      paddingVertical: 5,
                       borderRadius: 12,
                       marginBottom: 8,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 6,
                     }}
                   >
-                    <Text style={{ color: '#38bdf8', fontSize: 12, fontWeight: '600', includeFontPadding: false }}>
-                      Series: {book.seriesName} {book.seriesVolumeNumber ? `#${book.seriesVolumeNumber}` : ''}
+                    <Ionicons name="layers-outline" size={14} color="#38bdf8" />
+                    <Text style={{ color: '#38bdf8', fontSize: 12, fontWeight: '700', includeFontPadding: false }}>
+                      Series: {matchingSeries.seriesName} {matchingSeries.volumeNumber ? `#${matchingSeries.volumeNumber}` : ''} → View Series
                     </Text>
-                  </View>
-                )}
+                  </TouchableOpacity>
+                ) : null}
 
                 {Array.isArray(book.categories) && book.categories.length > 0 && (
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
@@ -201,7 +279,7 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
                   </View>
                 )}
 
-                {book.isbn ? (
+                {book.isbn && !book.isbn.startsWith('NOISBN') ? (
                   <Text style={{ color: '#94a3b8', fontSize: 12, fontFamily: 'monospace', includeFontPadding: false }}>
                     ISBN: {book.isbn}
                   </Text>
@@ -240,6 +318,166 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
                 </Text>
               </View>
             ) : null}
+
+            {/* Technical Metadata & Debug Info Section */}
+            <View
+              style={{
+                backgroundColor: '#0f172a',
+                borderRadius: 16,
+                padding: 16,
+                borderWidth: 1,
+                borderColor: '#334155',
+                marginBottom: 20,
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <Text style={{ color: '#f8fafc', fontSize: 15, fontWeight: '700', includeFontPadding: false }}>
+                  Book Metadata & Debug Info
+                </Text>
+                <View style={{ backgroundColor: 'rgba(56, 189, 248, 0.15)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
+                  <Text style={{ color: '#38bdf8', fontSize: 11, fontFamily: 'monospace', fontWeight: '700', includeFontPadding: false }}>
+                    DEBUG
+                  </Text>
+                </View>
+              </View>
+
+              <View style={{ gap: 6 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ color: '#94a3b8', fontSize: 13 }}>ISBN:</Text>
+                  <Text style={{ color: '#f8fafc', fontSize: 13, fontFamily: 'monospace', fontWeight: '600' }}>
+                    {book.isbn && !book.isbn.startsWith('NOISBN') ? book.isbn : 'None'}
+                  </Text>
+                </View>
+
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ color: '#94a3b8', fontSize: 13 }}>Open Library Work ID:</Text>
+                  <Text style={{ color: '#38bdf8', fontSize: 13, fontFamily: 'monospace', fontWeight: '600' }}>
+                    {book.workId || 'Not specified'}
+                  </Text>
+                </View>
+
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ color: '#94a3b8', fontSize: 13 }}>Catalog Book ID:</Text>
+                  <Text style={{ color: '#cbd5e1', fontSize: 13, fontFamily: 'monospace' }}>
+                    {book.bookId || book.id || 'N/A'}
+                  </Text>
+                </View>
+
+                {matchingSeries ? (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ color: '#94a3b8', fontSize: 13 }}>Matched Series:</Text>
+                    <Text style={{ color: '#38bdf8', fontSize: 13, fontWeight: '600' }}>
+                      {matchingSeries.seriesName} {matchingSeries.volumeNumber ? `#${matchingSeries.volumeNumber}` : ''}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+
+            {/* Top 3 OpenLibrary Lists Section */}
+            <View
+              style={{
+                backgroundColor: '#0f172a',
+                borderRadius: 16,
+                padding: 16,
+                borderWidth: 1,
+                borderColor: '#334155',
+                marginBottom: 20,
+              }}
+            >
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: 10,
+                }}
+              >
+                <Text style={{ color: '#f8fafc', fontSize: 15, fontWeight: '700', includeFontPadding: false }}>
+                  OpenLibrary Series Lists
+                </Text>
+                <View
+                  style={{
+                    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+                    paddingHorizontal: 8,
+                    paddingVertical: 2,
+                    borderRadius: 8,
+                  }}
+                >
+                  <Text style={{ color: '#38bdf8', fontSize: 11, fontWeight: '700', includeFontPadding: false }}>
+                    Top Lists
+                  </Text>
+                </View>
+              </View>
+
+              {loadingLists ? (
+                <View style={{ paddingVertical: 12, alignItems: 'center' }}>
+                  <ActivityIndicator size="small" color="#38bdf8" />
+                  <Text style={{ color: '#94a3b8', fontSize: 12, marginTop: 6, includeFontPadding: false }}>
+                    Searching OpenLibrary lists...
+                  </Text>
+                </View>
+              ) : topLists.length > 0 ? (
+                <View style={{ gap: 10 }}>
+                  {topLists.map((list) => {
+                    const isAdded = addedListUrls.has(list.url);
+                    const isAdding = addingListUrl === list.url;
+
+                    return (
+                      <View
+                        key={list.url}
+                        style={{
+                          backgroundColor: '#1e293b',
+                          borderRadius: 12,
+                          padding: 12,
+                          borderWidth: 1,
+                          borderColor: '#334155',
+                          flexDirection: 'row',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: 8,
+                        }}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ color: '#f8fafc', fontSize: 14, fontWeight: '700', includeFontPadding: false }}>
+                            {list.name}
+                          </Text>
+                          <Text style={{ color: '#94a3b8', fontSize: 12, marginTop: 2, includeFontPadding: false }}>
+                            {list.seedCount} {list.seedCount === 1 ? 'book' : 'books'} in series list
+                          </Text>
+                        </View>
+
+                        <TouchableOpacity
+                          onPress={() => handleAddListToSeries(list)}
+                          disabled={isAdded || isAdding}
+                          style={{
+                            backgroundColor: isAdded ? '#059669' : '#0284c7',
+                            paddingHorizontal: 12,
+                            paddingVertical: 8,
+                            borderRadius: 8,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            opacity: isAdded || isAdding ? 0.8 : 1.0,
+                          }}
+                        >
+                          {isAdding ? (
+                            <ActivityIndicator size="small" color="#ffffff" />
+                          ) : (
+                            <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '700', includeFontPadding: false }}>
+                              {isAdded ? 'Added ✓' : '+ Add Series'}
+                            </Text>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : (
+                <Text style={{ color: '#64748b', fontSize: 13, fontStyle: 'italic', includeFontPadding: false }}>
+                  No OpenLibrary series lists found for this book work ID.
+                </Text>
+              )}
+            </View>
 
             {/* Read Status Selection */}
             <View style={{ marginBottom: 20 }}>

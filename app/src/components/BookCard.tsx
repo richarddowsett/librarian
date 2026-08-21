@@ -173,7 +173,7 @@ export const BookCard: React.FC<BookCardProps> = ({ book, onPress, style }) => {
             interactive={true}
             onRatingChange={handleRatingChange}
           />
-          {book.isbn ? (
+          {book.isbn && !book.isbn.startsWith('NOISBN') ? (
             <Text style={{ color: '#64748b', fontSize: 10, fontFamily: 'monospace' }}>
               ISBN {book.isbn.slice(-4)}
             </Text>

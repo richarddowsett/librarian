@@ -79,6 +79,14 @@ export interface SanitizedBookMetadata {
   workKey: string | null;
 }
 
+export interface OpenLibraryListSummary {
+  url: string;
+  fullUrl?: string;
+  name: string;
+  seedCount: number;
+  lastUpdate?: string;
+}
+
 export interface SeriesVolume {
   volumeNumber: number;
   title: string;
@@ -91,6 +99,9 @@ export interface SeriesDetails {
   id: string;
   name: string;
   openLibraryWorkId?: string | null;
+  listUrl?: string | null;
+  lastUpdated?: string | null;
+  source?: 'openlibrary_list' | 'heuristics';
   volumes: SeriesVolume[];
   totalVolumes: number;
 }

@@ -8,7 +8,8 @@ import {
   ScanCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { Book, CatalogBook, User, UserLibraryEntry, SeriesDetails, UserSeriesStatus } from '../types';
-import { fetchBookByISBN } from './googleBooks';
+import { fetchBookByISBN as fetchGoogleBookByISBN, searchBooksByTitleAndAuthor as searchGoogleBooks } from './googleBooks';
+import { fetchBookByISBN as fetchOlBookByISBN, resolveWorkIdFromIsbn } from './openLibrary';
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
@@ -21,11 +22,12 @@ const USER_SERIES_STATUS_TABLE =
   process.env.USER_SERIES_STATUS_TABLE_NAME || 'librarian-dev-user-series-status';
 
 function mapToBook(entry: UserLibraryEntry, catalogBook: CatalogBook): Book {
+  const isNoIsbn = !catalogBook.isbn || catalogBook.isbn.startsWith('NOISBN');
   return {
     id: entry.id,
     ownerId: entry.userId,
     bookId: catalogBook.id,
-    isbn: catalogBook.isbn,
+    isbn: isNoIsbn ? '' : catalogBook.isbn,
     title: catalogBook.title,
     subtitle: catalogBook.subtitle || null,
     authors: catalogBook.authors || [],
@@ -74,9 +76,32 @@ export async function putUser(user: User): Promise<User> {
 // SHARED BOOKS CATALOG OPERATIONS
 // ----------------------------------------------------
 
+export async function ensureCatalogBookWorkKey(catalogBook: CatalogBook): Promise<CatalogBook> {
+  if (catalogBook.workKey && (catalogBook.workKey.startsWith('OL') || catalogBook.workKey.includes('/works/'))) {
+    return catalogBook;
+  }
+
+  if (catalogBook.isbn && !catalogBook.isbn.startsWith('NOISBN')) {
+    try {
+      const resolvedWorkId = await resolveWorkIdFromIsbn(catalogBook.isbn);
+      if (resolvedWorkId) {
+        const updated: CatalogBook = {
+          ...catalogBook,
+          workKey: resolvedWorkId,
+        };
+        await putCatalogBook(updated);
+        return updated;
+      }
+    } catch (err) {
+      // Ignore lookup error
+    }
+  }
+  return catalogBook;
+}
+
 export async function findCatalogBookByIsbn(isbn: string): Promise<CatalogBook | null> {
   const cleanIsbn = isbn.replace(/[-\s]/g, '').trim().toUpperCase();
-  if (!cleanIsbn) return null;
+  if (!cleanIsbn || cleanIsbn.startsWith('NOISBN')) return null;
 
   const command = new QueryCommand({
     TableName: BOOKS_TABLE,
@@ -88,7 +113,8 @@ export async function findCatalogBookByIsbn(isbn: string): Promise<CatalogBook |
   });
   const response = await docClient.send(command);
   const items = (response.Items as CatalogBook[]) || [];
-  return items.length > 0 ? items[0] : null;
+  if (items.length === 0) return null;
+  return ensureCatalogBookWorkKey(items[0]);
 }
 
 export async function getCatalogBookById(id: string): Promise<CatalogBook | null> {
@@ -97,7 +123,9 @@ export async function getCatalogBookById(id: string): Promise<CatalogBook | null
     Key: { id },
   });
   const response = await docClient.send(command);
-  return (response.Item as CatalogBook) || null;
+  const item = (response.Item as CatalogBook) || null;
+  if (!item) return null;
+  return ensureCatalogBookWorkKey(item);
 }
 
 export async function putCatalogBook(catalogBook: CatalogBook): Promise<CatalogBook> {
@@ -107,6 +135,42 @@ export async function putCatalogBook(catalogBook: CatalogBook): Promise<CatalogB
   });
   await docClient.send(command);
   return catalogBook;
+}
+
+export async function backfillBooksTableWorkKeys(): Promise<{ scanned: number; updated: number }> {
+  let scanned = 0;
+  let updated = 0;
+
+  try {
+    const command = new ScanCommand({
+      TableName: BOOKS_TABLE,
+    });
+    const response = await docClient.send(command);
+    const items = (response.Items as CatalogBook[]) || [];
+    scanned = items.length;
+
+    for (const item of items) {
+      if (!item.workKey || (!item.workKey.startsWith('OL') && !item.workKey.includes('/works/'))) {
+        if (item.isbn && !item.isbn.startsWith('NOISBN')) {
+          const resolvedId = await resolveWorkIdFromIsbn(item.isbn);
+          if (resolvedId) {
+            const updatedBook: CatalogBook = {
+              ...item,
+              workKey: resolvedId,
+            };
+            await putCatalogBook(updatedBook);
+            updated++;
+          }
+        }
+      }
+    }
+  } catch (err) {
+    if (process.env.NODE_ENV !== 'test') {
+      console.error('Error in backfillBooksTableWorkKeys:', err);
+    }
+  }
+
+  return { scanned, updated };
 }
 
 // ----------------------------------------------------
@@ -150,13 +214,33 @@ export async function getBookById(userId: string, id: string): Promise<Book | nu
 }
 
 export async function addBookForUser(userId: string, input: any): Promise<Book> {
-  const cleanIsbn = (input.isbn || '').replace(/[-\s]/g, '').trim().toUpperCase();
+  let cleanIsbn = (input.isbn || '').replace(/[-\s]/g, '').trim().toUpperCase();
+  if (cleanIsbn.startsWith('NOISBN')) {
+    cleanIsbn = '';
+  }
 
   let catalogBook: CatalogBook | null = null;
 
   // 1. Check DynamoDB books catalog by ISBN FIRST to avoid API calls / duplication!
   if (cleanIsbn) {
     catalogBook = await findCatalogBookByIsbn(cleanIsbn);
+  }
+
+  // 1b. If cleanIsbn is missing (e.g. from AI book search or manual entry), try searching Google Books to resolve a real ISBN!
+  if (!catalogBook && !cleanIsbn && input.title) {
+    try {
+      const firstAuthor = Array.isArray(input.authors) && input.authors.length > 0 ? input.authors[0] : '';
+      const searchHits = await searchGoogleBooks(input.title, firstAuthor);
+      if (searchHits && searchHits.length > 0) {
+        const hitWithIsbn = searchHits.find((b) => b.isbn && !b.isbn.startsWith('NOISBN'));
+        if (hitWithIsbn && hitWithIsbn.isbn) {
+          cleanIsbn = hitWithIsbn.isbn;
+          catalogBook = await findCatalogBookByIsbn(cleanIsbn);
+        }
+      }
+    } catch (err) {
+      // Ignore lookup error
+    }
   }
 
   // 2. If missing from DynamoDB books catalog, check Google Books API or use provided inputs
@@ -174,25 +258,40 @@ export async function addBookForUser(userId: string, input: any): Promise<Book> 
     let workKey = input.workId || null;
 
     if (cleanIsbn) {
-      const googleMeta = await fetchBookByISBN(cleanIsbn);
-      if (googleMeta) {
-        title = googleMeta.title || title;
-        subtitle = googleMeta.subtitle || subtitle;
-        authors = googleMeta.authors || authors;
-        coverUrl = googleMeta.coverUrl || coverUrl;
-        publisher = googleMeta.publisher || publisher;
-        publishDate = googleMeta.publishDate || publishDate;
-        pageCount = googleMeta.pageCount || pageCount;
-        description = googleMeta.description || description;
-        categories = googleMeta.categories || categories;
-        language = googleMeta.language || language;
-        workKey = googleMeta.workKey || workKey;
+      try {
+        const googleMeta = await fetchGoogleBookByISBN(cleanIsbn);
+        if (googleMeta) {
+          title = googleMeta.title || title;
+          subtitle = googleMeta.subtitle || subtitle;
+          authors = googleMeta.authors || authors;
+          coverUrl = googleMeta.coverUrl || coverUrl;
+          publisher = googleMeta.publisher || publisher;
+          publishDate = googleMeta.publishDate || publishDate;
+          pageCount = googleMeta.pageCount || pageCount;
+          description = googleMeta.description || description;
+          categories = googleMeta.categories || categories;
+          language = googleMeta.language || language;
+          workKey = googleMeta.workKey || workKey;
+        }
+      } catch (err) {
+        // Ignore Google fetch error
+      }
+
+      if (!workKey || (!workKey.startsWith('OL') && !workKey.includes('/works/'))) {
+        try {
+          const resolvedOlKey = await resolveWorkIdFromIsbn(cleanIsbn);
+          if (resolvedOlKey) {
+            workKey = resolvedOlKey;
+          }
+        } catch (err) {
+          // Ignore OL resolution error
+        }
       }
     }
 
     catalogBook = {
       id: `book_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-      isbn: cleanIsbn || `NOISBN-${Date.now()}`,
+      isbn: cleanIsbn || `NOISBN-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       title,
       subtitle,
       authors,

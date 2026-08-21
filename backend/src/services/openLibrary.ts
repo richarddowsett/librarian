@@ -1,4 +1,5 @@
-import { SanitizedBookMetadata } from '../types';
+import { SanitizedBookMetadata, OpenLibraryListSummary, SeriesVolume } from '../types';
+import { extractVolumeNumber, sanitizeWorkId } from './series';
 
 /**
  * Sanitizes an ISBN string by stripping hyphens, spaces, and converting to uppercase.
@@ -196,6 +197,218 @@ export async function searchBooksByTitleAndAuthor(
   } catch (err) {
     if (process.env.NODE_ENV !== 'test') {
       console.error('Error searching Open Library by title and author:', err);
+    }
+    return [];
+  }
+}
+
+/**
+ * Resolves an Open Library work ID (e.g. OL82563W) from an ISBN string.
+ * Tries bibkeys API, direct ISBN edition JSON, and search API.
+ */
+export async function resolveWorkIdFromIsbn(
+  isbn: string,
+  fetchFn: typeof fetch = globalThis.fetch
+): Promise<string | null> {
+  const cleanedIsbn = sanitizeIsbn(isbn);
+  if (!cleanedIsbn || !isValidIsbnFormat(cleanedIsbn)) return null;
+
+  // 1. Try bibkeys API
+  try {
+    const bibKey = `ISBN:${cleanedIsbn}`;
+    const url = `https://openlibrary.org/api/books?bibkeys=${bibKey}&jscmd=data&format=json`;
+    const response = await fetchFn(url, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'LibrarianApp/1.0',
+      },
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      const rawBook = data[bibKey];
+      if (rawBook && Array.isArray(rawBook.works) && rawBook.works.length > 0 && rawBook.works[0].key) {
+        const fullKey: string = rawBook.works[0].key;
+        return fullKey.replace(/^\/works\//, '').trim();
+      }
+    }
+  } catch (error) {
+    // Ignore bibkeys error
+  }
+
+  // 2. Try direct ISBN edition JSON endpoint
+  try {
+    const isbnUrl = `https://openlibrary.org/isbn/${cleanedIsbn}.json`;
+    const response = await fetchFn(isbnUrl, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'LibrarianApp/1.0',
+      },
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (Array.isArray(data.works) && data.works.length > 0 && data.works[0].key) {
+        const fullKey: string = data.works[0].key;
+        return fullKey.replace(/^\/works\//, '').trim();
+      }
+    }
+  } catch (error) {
+    // Ignore edition error
+  }
+
+  // 3. Try Open Library search API by ISBN
+  try {
+    const searchUrl = `https://openlibrary.org/search.json?isbn=${cleanedIsbn}`;
+    const response = await fetchFn(searchUrl, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'LibrarianApp/1.0',
+      },
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (Array.isArray(data.docs) && data.docs.length > 0) {
+        const doc = data.docs[0];
+        if (doc.key && typeof doc.key === 'string' && doc.key.includes('/works/')) {
+          return doc.key.replace(/^\/works\//, '').trim();
+        }
+        if (Array.isArray(doc.work_key) && doc.work_key.length > 0) {
+          return String(doc.work_key[0]).replace(/^\/works\//, '').trim();
+        }
+      }
+    }
+  } catch (error) {
+    // Ignore search error
+  }
+
+  return null;
+}
+
+/**
+ * Fetches top 3 user-created lists for a given Open Library work ID or ISBN.
+ * Lists are sorted by seed count (number of books included).
+ */
+export async function fetchTopListsForWork(
+  workIdOrIsbn: string,
+  fetchFn: typeof fetch = globalThis.fetch
+): Promise<OpenLibraryListSummary[]> {
+  let cleanId = sanitizeWorkId(workIdOrIsbn);
+  if (!cleanId) return [];
+
+  // If parameter is an ISBN format, auto-resolve the workId first!
+  if (isValidIsbnFormat(cleanId)) {
+    const resolvedId = await resolveWorkIdFromIsbn(cleanId, fetchFn);
+    if (resolvedId) {
+      cleanId = resolvedId;
+    }
+  }
+
+  const url = `https://openlibrary.org/works/${cleanId}/lists.json`;
+
+  try {
+    const response = await fetchFn(url, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'LibrarianApp/1.0',
+      },
+    });
+
+    if (!response.ok) return [];
+
+    const data = await response.json();
+    if (!data.entries || !Array.isArray(data.entries)) return [];
+
+    const lists: OpenLibraryListSummary[] = data.entries.map((item: any) => ({
+      url: item.url || item.full_url || '',
+      fullUrl: item.full_url || item.url || '',
+      name: (item.name || 'Untitled List').trim(),
+      seedCount: typeof item.seed_count === 'number' ? item.seed_count : 0,
+      lastUpdate: item.last_update || undefined,
+    }));
+
+    // Prioritize lists with valid seedCount > 0 and sort by seedCount descending
+    const sorted = lists.sort((a, b) => b.seedCount - a.seedCount);
+
+    return sorted.slice(0, 3);
+  } catch (error) {
+    if (process.env.NODE_ENV !== 'test') {
+      console.error('Error fetching Open Library lists for work:', error);
+    }
+    return [];
+  }
+}
+
+/**
+ * Fetches volume list seeds from an Open Library list endpoint.
+ */
+export async function fetchOpenLibraryListSeeds(
+  listPath: string,
+  fetchFn: typeof fetch = globalThis.fetch
+): Promise<SeriesVolume[]> {
+  if (!listPath) return [];
+
+  let cleanPath = listPath.trim();
+  if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
+    try {
+      const parsed = new URL(cleanPath);
+      cleanPath = parsed.pathname;
+    } catch (e) {
+      // keep original if URL parse fails
+    }
+  }
+
+  // Ensure seeds.json endpoint formatting
+  cleanPath = cleanPath.replace(/\/seeds(?:\.json)?$/, '').replace(/\.json$/, '');
+  const seedsUrl = `https://openlibrary.org${cleanPath}/seeds.json`;
+
+  try {
+    const response = await fetchFn(seedsUrl, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'LibrarianApp/1.0',
+      },
+    });
+
+    if (!response.ok) return [];
+
+    const data = await response.json();
+    if (!data.entries || !Array.isArray(data.entries)) return [];
+
+    const volumes: SeriesVolume[] = [];
+    data.entries.forEach((entry: any, index: number) => {
+      const title = entry.title || `Volume ${index + 1}`;
+      const volNum = extractVolumeNumber(title) || index + 1;
+
+      let workId: string | null = null;
+      const rawUrl = entry.url || entry.full_url || '';
+      if (rawUrl.includes('/works/')) {
+        const match = rawUrl.match(/\/works\/([^\/\s]+)/);
+        if (match) workId = match[1];
+      }
+
+      let coverUrl: string | null = null;
+      if (entry.picture && entry.picture.url) {
+        let picUrl: string = entry.picture.url;
+        if (picUrl.startsWith('//')) {
+          picUrl = `https:${picUrl}`;
+        }
+        coverUrl = picUrl;
+      }
+
+      volumes.push({
+        volumeNumber: volNum,
+        title,
+        workId,
+        coverUrl,
+      });
+    });
+
+    return volumes;
+  } catch (error) {
+    if (process.env.NODE_ENV !== 'test') {
+      console.error('Error fetching Open Library list seeds:', error);
     }
     return [];
   }

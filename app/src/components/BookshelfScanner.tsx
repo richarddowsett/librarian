@@ -146,17 +146,17 @@ export const BookshelfScanner: React.FC<BookshelfScannerProps> = ({ onBookCatalo
       const presigned = await getPresignedUploadUrl(fileName, 'image/jpeg', apiOptions);
 
       // Step 2: Upload image payload directly to S3
-      setStatusMessage('2/3 Uploading image to S3 bucket...');
+      setStatusMessage('2/3 Uploading image...');
       const uploadOk = await uploadImageToS3(presigned.uploadUrl, capturedImageUri, 'image/jpeg');
 
       if (!uploadOk) {
         setIsAnalyzing(false);
-        setGuardrailAlert('Failed to upload photo to S3. Please try again.');
+        setGuardrailAlert('Failed to upload photo. Please try again.');
         return;
       }
 
-      // Step 3: Trigger Gemini Vision AI analysis
-      setStatusMessage('3/3 Analyzing bookshelf spines with Gemini AI...');
+      // Step 3: Trigger Vision AI analysis
+      setStatusMessage('3/3 Analyzing bookshelf spines...');
       const result = await analyzeBookshelfImage(presigned.s3Key, apiOptions);
 
       setIsAnalyzing(false);
@@ -195,7 +195,7 @@ export const BookshelfScanner: React.FC<BookshelfScannerProps> = ({ onBookCatalo
         </Text>
       </View>
       <Text style={{ color: '#94a3b8', fontSize: 14 }}>
-        Upload or take a photo of your bookshelf. Our Gemini Vision AI extracts book titles &
+        Upload or take a photo of your bookshelf. AI scanning extracts book titles &
         authors automatically!
       </Text>
     </View>
@@ -327,6 +327,7 @@ export const BookshelfScanner: React.FC<BookshelfScannerProps> = ({ onBookCatalo
             style={{
               backgroundColor: '#0284c7',
               paddingVertical: 14,
+              paddingHorizontal: 16,
               borderRadius: 14,
               alignItems: 'center',
               flexDirection: 'row',
@@ -340,8 +341,16 @@ export const BookshelfScanner: React.FC<BookshelfScannerProps> = ({ onBookCatalo
             ) : (
               <>
                 <Ionicons name="sparkles" size={20} color="#ffffff" />
-                <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 15 }}>
-                  Scan Bookshelf with Gemini AI
+                <Text
+                  style={{
+                    color: '#ffffff',
+                    fontWeight: '700',
+                    fontSize: 15,
+                    flexShrink: 1,
+                    textAlign: 'center',
+                  }}
+                >
+                  Scan Bookshelf
                 </Text>
               </>
             )}
@@ -355,6 +364,7 @@ export const BookshelfScanner: React.FC<BookshelfScannerProps> = ({ onBookCatalo
               borderColor: '#334155',
               borderWidth: 1,
               paddingVertical: 14,
+              paddingHorizontal: 16,
               borderRadius: 14,
               alignItems: 'center',
               flexDirection: 'row',
@@ -364,28 +374,46 @@ export const BookshelfScanner: React.FC<BookshelfScannerProps> = ({ onBookCatalo
             }}
           >
             <Ionicons name="refresh-outline" size={20} color="#38bdf8" />
-            <Text style={{ color: '#38bdf8', fontWeight: '800', fontSize: 15 }}>
+            <Text
+              style={{
+                color: '#38bdf8',
+                fontWeight: '700',
+                fontSize: 15,
+                flexShrink: 1,
+                textAlign: 'center',
+              }}
+            >
               Choose a Different Photo
             </Text>
           </TouchableOpacity>
         </View>
       ) : (
-        <View style={{ flexDirection: 'row', gap: 12, width: '100%' }}>
+        <View style={{ flexDirection: width < 440 ? 'column' : 'row', gap: 12, width: '100%' }}>
           <TouchableOpacity
             onPress={handleLaunchCamera}
             style={{
               flex: 1,
               backgroundColor: '#0284c7',
               paddingVertical: 14,
+              paddingHorizontal: 12,
               borderRadius: 14,
               alignItems: 'center',
               flexDirection: 'row',
               justifyContent: 'center',
               gap: 8,
+              minWidth: 0,
             }}
           >
             <Ionicons name="camera" size={20} color="#ffffff" />
-            <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 15 }}>
+            <Text
+              style={{
+                color: '#ffffff',
+                fontWeight: '700',
+                fontSize: 14,
+                flexShrink: 1,
+                textAlign: 'center',
+              }}
+            >
               Take Photo
             </Text>
           </TouchableOpacity>
@@ -398,15 +426,25 @@ export const BookshelfScanner: React.FC<BookshelfScannerProps> = ({ onBookCatalo
               borderColor: '#334155',
               borderWidth: 1,
               paddingVertical: 14,
+              paddingHorizontal: 12,
               borderRadius: 14,
               alignItems: 'center',
               flexDirection: 'row',
               justifyContent: 'center',
               gap: 8,
+              minWidth: 0,
             }}
           >
             <Ionicons name="images-outline" size={20} color="#38bdf8" />
-            <Text style={{ color: '#38bdf8', fontWeight: '800', fontSize: 15 }}>
+            <Text
+              style={{
+                color: '#38bdf8',
+                fontWeight: '700',
+                fontSize: 14,
+                flexShrink: 1,
+                textAlign: 'center',
+              }}
+            >
               Choose from Gallery
             </Text>
           </TouchableOpacity>

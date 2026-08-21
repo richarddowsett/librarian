@@ -1,10 +1,18 @@
-import { Book, SeriesVolume, UserSeriesStatus } from '../../types';
+import { Book, SeriesDetails, SeriesVolume, UserSeriesStatus } from '../../types';
 import {
+  addOpenLibrarySeriesList,
   calculateSeriesProgress,
+  ensureSeriesUpToDate,
   extractVolumeNumber,
   fetchSeriesDetails,
   sanitizeWorkId,
 } from '../series';
+import * as dynamoService from '../dynamoService';
+
+jest.mock('../dynamoService', () => ({
+  putSeries: jest.fn().mockResolvedValue(true),
+  putUserSeriesStatus: jest.fn().mockResolvedValue(true),
+}));
 
 describe('Series Discovery and Tracking Service', () => {
   describe('sanitizeWorkId', () => {
@@ -184,6 +192,89 @@ describe('Series Discovery and Tracking Service', () => {
       expect(progress.isCompleted).toBe(true);
       expect(progress.wishlistStatus).toBe('completed');
       expect(progress.missingVolumes).toHaveLength(0);
+    });
+  });
+
+  describe('addOpenLibrarySeriesList', () => {
+    it('fetches seeds from Open Library list and stores series in DDB', async () => {
+      const mockListSeeds = {
+        entries: [
+          { title: 'Dune (Book 1)', url: '/works/OL1W' },
+          { title: 'Dune Messiah (Book 2)', url: '/works/OL2W' },
+        ],
+      };
+
+      const mockFetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => mockListSeeds,
+      } as Response);
+
+      const series = await addOpenLibrarySeriesList(
+        'user123',
+        '/people/test/lists/OL123L',
+        'Dune Saga',
+        'OL1W',
+        mockFetch as any
+      );
+
+      expect(series).not.toBeNull();
+      expect(series.id).toBe('series_list_OL123L');
+      expect(series.name).toBe('Dune Saga');
+      expect(series.volumes).toHaveLength(2);
+      expect(series.lastUpdated).toBeDefined();
+      expect(dynamoService.putSeries).toHaveBeenCalledWith(series);
+      expect(dynamoService.putUserSeriesStatus).toHaveBeenCalled();
+    });
+  });
+
+  describe('ensureSeriesUpToDate (1-week stale diff check)', () => {
+    it('returns original series without calling API if updated less than 1 week ago', async () => {
+      const freshTimestamp = new Date().toISOString(); // updated just now
+      const series: SeriesDetails = {
+        id: 'series_list_OL123L',
+        name: 'Dune Saga',
+        listUrl: '/people/test/lists/OL123L',
+        lastUpdated: freshTimestamp,
+        volumes: [{ volumeNumber: 1, title: 'Dune (Book 1)' }],
+        totalVolumes: 1,
+      };
+
+      const mockFetch = jest.fn();
+      const updated = await ensureSeriesUpToDate(series, mockFetch as any);
+
+      expect(updated).toEqual(series);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('fetches fresh seeds, performs diff, and updates DDB if updated > 1 week ago', async () => {
+      const eightDaysAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
+      const series: SeriesDetails = {
+        id: 'series_list_OL123L',
+        name: 'Dune Saga',
+        listUrl: '/people/test/lists/OL123L',
+        lastUpdated: eightDaysAgo,
+        volumes: [{ volumeNumber: 1, title: 'Dune (Book 1)' }],
+        totalVolumes: 1,
+      };
+
+      const mockListSeeds = {
+        entries: [
+          { title: 'Dune (Book 1)', url: '/works/OL1W' },
+          { title: 'Dune Messiah (Book 2)', url: '/works/OL2W' }, // Newly added book!
+        ],
+      };
+
+      const mockFetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => mockListSeeds,
+      } as Response);
+
+      const updated = await ensureSeriesUpToDate(series, mockFetch as any);
+
+      expect(updated.volumes).toHaveLength(2);
+      expect(updated.totalVolumes).toBe(2);
+      expect(new Date(updated.lastUpdated!).getTime()).toBeGreaterThan(new Date(eightDaysAgo).getTime());
+      expect(dynamoService.putSeries).toHaveBeenCalledWith(updated);
     });
   });
 });

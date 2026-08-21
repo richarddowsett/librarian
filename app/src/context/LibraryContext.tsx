@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
 import { Book, CreateBookInput, UpdateBookReviewInput, bookSchema } from '../schemas/book';
 import { useAuth } from './AuthContext';
-import { fetchBooksApi, addBookApi, updateBookApi, deleteBookApi } from '../services/apiClient';
+import { fetchBooksApi, addBookApi, updateBookApi, deleteBookApi, importSeriesListApi, fetchAllSeriesApi } from '../services/apiClient';
 import { fetchAuthorCatalog, fetchSeriesCatalog, CatalogBook, isEnglishCatalogBook } from '../services/catalogService';
 
 export interface SeriesVolumeItem {
@@ -53,6 +53,8 @@ interface LibraryContextType {
   updateBookReview: (id: string, reviewData: UpdateBookReviewInput) => Promise<void>;
   deleteBook: (id: string) => Promise<void>;
   getBookById: (id: string) => Book | undefined;
+  addSeriesList: (listUrl: string, listName: string, workId?: string) => Promise<{ success: boolean; series?: any; error?: string }>;
+  customSeriesList: any[];
   seriesOverviews: SeriesOverview[];
   authorOverviews: AuthorOverview[];
   stats: {
@@ -69,6 +71,7 @@ const LibraryContext = createContext<LibraryContextType | undefined>(undefined);
 export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, authToken, logout } = useAuth();
   const [books, setBooks] = useState<Book[]>([]);
+  const [customSeriesList, setCustomSeriesList] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'unread' | 'reading' | 'read'>('all');
   const [authorCatalogsMap, setAuthorCatalogsMap] = useState<Record<string, CatalogBook[]>>({});
@@ -87,12 +90,21 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (!user) return;
     setRefreshing(true);
     try {
-      const remoteBooks = await fetchBooksApi({
-        authToken: authToken || undefined,
-        userId: user.uid,
-        onUnauthorized: handleUnauthorized,
-      });
+      const [remoteBooks, remoteSeries] = await Promise.all([
+        fetchBooksApi({
+          authToken: authToken || undefined,
+          userId: user.uid,
+          onUnauthorized: handleUnauthorized,
+        }),
+        fetchAllSeriesApi({
+          authToken: authToken || undefined,
+          userId: user.uid,
+        }),
+      ]);
       setBooks(remoteBooks || []);
+      if (Array.isArray(remoteSeries)) {
+        setCustomSeriesList(remoteSeries);
+      }
     } catch (err) {
       console.error('Error refreshing library:', err);
     } finally {
@@ -100,23 +112,33 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
-  // Load books from API Gateway using Cognito JWT Token
+  // Load books & series from API Gateway
   useEffect(() => {
-    async function loadBackendBooks() {
+    async function loadBackendData() {
       if (!user) {
         setBooks([]);
+        setCustomSeriesList([]);
         return;
       }
 
-      const remoteBooks = await fetchBooksApi({
-        authToken: authToken || undefined,
-        userId: user.uid,
-        onUnauthorized: handleUnauthorized,
-      });
+      const [remoteBooks, remoteSeries] = await Promise.all([
+        fetchBooksApi({
+          authToken: authToken || undefined,
+          userId: user.uid,
+          onUnauthorized: handleUnauthorized,
+        }),
+        fetchAllSeriesApi({
+          authToken: authToken || undefined,
+          userId: user.uid,
+        }),
+      ]);
 
       setBooks(remoteBooks || []);
+      if (Array.isArray(remoteSeries)) {
+        setCustomSeriesList(remoteSeries);
+      }
     }
-    loadBackendBooks();
+    loadBackendData();
   }, [user, authToken]);
 
   const userBooks = useMemo(() => {
@@ -249,8 +271,65 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       });
     });
 
+    // Incorporate custom imported Open Library series lists
+    customSeriesList.forEach((cSeries) => {
+      if (!cSeries || !cSeries.id) return;
+      const existingIdx = result.findIndex((r) => r.seriesId === cSeries.id);
+
+      const volumesList = Array.isArray(cSeries.volumes) ? cSeries.volumes : [];
+      const allVolumes: SeriesVolumeItem[] = [];
+      const missingVolumes: number[] = [];
+      const ownedBooksList: Book[] = [];
+
+      volumesList.forEach((vol: any, idx: number) => {
+        const volNum = vol.volumeNumber || idx + 1;
+        const volTitle = vol.title || `Vol #${volNum}`;
+
+        const ownedBook = userBooks.find((b) => {
+          if (b.seriesId === cSeries.id && b.seriesVolumeNumber === volNum) return true;
+          if (vol.workId && b.workId && b.workId.replace(/^\/works\//, '') === vol.workId.replace(/^\/works\//, '')) return true;
+          if (vol.isbn && b.isbn && b.isbn.replace(/[- ]/g, '').toUpperCase() === vol.isbn.replace(/[- ]/g, '').toUpperCase()) return true;
+          if (b.title && b.title.trim().toLowerCase() === volTitle.trim().toLowerCase()) return true;
+          return false;
+        });
+
+        if (ownedBook) {
+          ownedBooksList.push(ownedBook);
+          allVolumes.push({
+            volumeNumber: volNum,
+            isOwned: true,
+            title: ownedBook.title,
+            book: ownedBook,
+          });
+        } else {
+          missingVolumes.push(volNum);
+          allVolumes.push({
+            volumeNumber: volNum,
+            isOwned: false,
+            title: volTitle,
+          });
+        }
+      });
+
+      const overview: SeriesOverview = {
+        seriesId: cSeries.id,
+        seriesName: cSeries.name || 'OpenLibrary Series',
+        totalOwned: ownedBooksList.length,
+        maxVolumeOwned: volumesList.length || 1,
+        books: ownedBooksList,
+        missingVolumes,
+        allVolumes,
+      };
+
+      if (existingIdx >= 0) {
+        result[existingIdx] = overview;
+      } else {
+        result.push(overview);
+      }
+    });
+
     return result;
-  }, [userBooks]);
+  }, [userBooks, customSeriesList]);
 
   const authorOverviews = useMemo(() => {
     const authorMap = new Map<string, Book[]>();
@@ -455,6 +534,34 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return books.find((b) => b.id === id);
   };
 
+  const addSeriesList = async (listUrl: string, listName: string, workId?: string) => {
+    const ownerId = user?.uid || 'dev-user-12345';
+    const remoteSeries = await importSeriesListApi(listUrl, listName, workId, {
+      authToken: authToken || undefined,
+      userId: ownerId,
+      onUnauthorized: handleUnauthorized,
+    });
+
+    if (remoteSeries) {
+      setCustomSeriesList((prev) => {
+        const filtered = prev.filter((s) => s.id !== remoteSeries.id);
+        return [...filtered, remoteSeries];
+      });
+      return { success: true, series: remoteSeries };
+    }
+
+    const fallbackSeries = {
+      id: `series_list_${Date.now()}`,
+      name: listName,
+      listUrl,
+      lastUpdated: new Date().toISOString(),
+      volumes: [],
+      totalVolumes: 0,
+    };
+    setCustomSeriesList((prev) => [...prev, fallbackSeries]);
+    return { success: true, series: fallbackSeries };
+  };
+
   return (
     <LibraryContext.Provider
       value={{
@@ -471,6 +578,8 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updateBookReview,
         deleteBook,
         getBookById,
+        addSeriesList,
+        customSeriesList,
         seriesOverviews,
         authorOverviews,
         stats,

@@ -1,4 +1,6 @@
 import { Book, SeriesDetails, SeriesProgress, SeriesVolume, UserSeriesStatus } from '../types';
+import { putSeries, putUserSeriesStatus } from './dynamoService';
+import { fetchOpenLibraryListSeeds } from './openLibrary';
 
 /**
  * Sanitizes a work ID by stripping any leading '/works/' prefix.
@@ -232,4 +234,122 @@ export function calculateSeriesProgress(
     isCompleted,
     wishlistStatus,
   };
+}
+
+/**
+ * Extracts list ID (e.g. OL298822L) from an Open Library list URL or path.
+ */
+export function extractListId(listUrl: string): string {
+  if (!listUrl) return `list_${Date.now()}`;
+  const match = listUrl.match(/(OL\d+L)/i);
+  if (match && match[1]) return match[1];
+  return listUrl.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
+}
+
+/**
+ * Imports an Open Library list as a tracked Series entity in DynamoDB.
+ */
+export async function addOpenLibrarySeriesList(
+  userId: string,
+  listUrl: string,
+  listName: string,
+  openLibraryWorkId?: string | null,
+  fetchFn: typeof fetch = globalThis.fetch
+): Promise<SeriesDetails> {
+  const listId = extractListId(listUrl);
+  const seriesId = `series_list_${listId}`;
+
+  // Fetch volume seeds from Open Library
+  const volumes = await fetchOpenLibraryListSeeds(listUrl, fetchFn);
+  const now = new Date().toISOString();
+
+  const series: SeriesDetails = {
+    id: seriesId,
+    name: listName || `List ${listId}`,
+    openLibraryWorkId: openLibraryWorkId || null,
+    listUrl,
+    lastUpdated: now,
+    source: 'openlibrary_list',
+    volumes,
+    totalVolumes: volumes.length,
+  };
+
+  await putSeries(series);
+
+  if (userId) {
+    await putUserSeriesStatus({
+      id: `uss_${userId}_${seriesId}`,
+      userId,
+      seriesId,
+      isCompleted: false,
+      ignoredVolumes: [],
+    });
+  }
+
+  return series;
+}
+
+/**
+ * Checks if a series imported from an Open Library list has been updated in the past 1 week (7 days).
+ * If stale (> 1 week), fetches fresh seeds from Open Library, performs a diff, updates DDB, and updates lastUpdated.
+ */
+export async function ensureSeriesUpToDate(
+  series: SeriesDetails,
+  fetchFn: typeof fetch = globalThis.fetch
+): Promise<SeriesDetails> {
+  if (!series.listUrl) {
+    return series;
+  }
+
+  const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+  const lastUpdatedTime = series.lastUpdated ? new Date(series.lastUpdated).getTime() : 0;
+  const isStale = isNaN(lastUpdatedTime) || Date.now() - lastUpdatedTime > ONE_WEEK_MS;
+
+  if (!isStale) {
+    return series;
+  }
+
+  try {
+    const freshVolumes = await fetchOpenLibraryListSeeds(series.listUrl, fetchFn);
+    if (!freshVolumes || freshVolumes.length === 0) {
+      return series;
+    }
+
+    const now = new Date().toISOString();
+    let hasChanges = false;
+
+    if (freshVolumes.length !== series.volumes.length) {
+      hasChanges = true;
+    } else {
+      for (let i = 0; i < freshVolumes.length; i++) {
+        const fresh = freshVolumes[i];
+        const current = series.volumes[i];
+        if (
+          !current ||
+          fresh.title !== current.title ||
+          fresh.workId !== current.workId ||
+          fresh.coverUrl !== current.coverUrl ||
+          fresh.volumeNumber !== current.volumeNumber
+        ) {
+          hasChanges = true;
+          break;
+        }
+      }
+    }
+
+    const updatedSeries: SeriesDetails = {
+      ...series,
+      volumes: freshVolumes,
+      totalVolumes: freshVolumes.length,
+      lastUpdated: now,
+    };
+
+    await putSeries(updatedSeries);
+    return updatedSeries;
+  } catch (err) {
+    if (process.env.NODE_ENV !== 'test') {
+      console.error(`Failed to refresh stale series ${series.id} from Open Library:`, err);
+    }
+    return series;
+  }
 }

@@ -7,6 +7,9 @@ import {
   getUserById,
   putUser,
   findCatalogBookByIsbn,
+  getCatalogBookById,
+  ensureCatalogBookWorkKey,
+  backfillBooksTableWorkKeys,
 } from '../dynamoService';
 
 // Mock AWS DynamoDB DocumentClient & Commands
@@ -35,7 +38,14 @@ jest.mock('../googleBooks', () => ({
   fetchBookByISBN: jest.fn(),
 }));
 
+// Mock openLibrary fetcher
+jest.mock('../openLibrary', () => ({
+  resolveWorkIdFromIsbn: jest.fn().mockResolvedValue('OL99999W'),
+  fetchBookByISBN: jest.fn().mockResolvedValue({ workKey: 'OL99999W' }),
+}));
+
 import { fetchBookByISBN } from '../googleBooks';
+import { resolveWorkIdFromIsbn } from '../openLibrary';
 
 describe('DynamoDB Normalized 3-Table Service (Users, Books Catalog, User Library)', () => {
   beforeEach(() => {
@@ -153,6 +163,48 @@ describe('DynamoDB Normalized 3-Table Service (Users, Books Catalog, User Librar
       mockSend.mockResolvedValueOnce({ Item: user }); // getUserById
       const fetched = await getUserById('usr-100');
       expect(fetched).toEqual(user);
+    });
+  });
+
+  describe('OpenLibrary WorkKey Auto-Resolution & Backfill', () => {
+    it('automatically resolves and saves workKey if catalog book has workKey as null', async () => {
+      const catalogItemWithNullWorkKey = {
+        id: 'book-123',
+        isbn: '9780140449136',
+        title: 'The Odyssey',
+        authors: ['Homer'],
+        workKey: null,
+        createdAt: '2026-08-01T00:00:00.000Z',
+      };
+
+      // 1. GetCommand -> returns item with workKey: null
+      mockSend.mockResolvedValueOnce({ Item: catalogItemWithNullWorkKey });
+      // 2. PutCommand -> saves item with resolved workKey
+      mockSend.mockResolvedValueOnce({});
+
+      const catalogBook = await getCatalogBookById('book-123');
+
+      expect(resolveWorkIdFromIsbn).toHaveBeenCalledWith('9780140449136');
+      expect(catalogBook).not.toBeNull();
+      expect(catalogBook?.workKey).toBe('OL99999W');
+    });
+
+    it('scans books table and backfills missing workKeys', async () => {
+      const itemsToScan = [
+        { id: 'b1', isbn: '9780140449136', title: 'Book 1', workKey: null },
+        { id: 'b2', isbn: '9780545010221', title: 'Book 2', workKey: 'OL82563W' },
+      ];
+
+      // 1. ScanCommand -> returns items
+      mockSend.mockResolvedValueOnce({ Items: itemsToScan });
+      // 2. PutCommand for b1 update
+      mockSend.mockResolvedValueOnce({});
+
+      const stats = await backfillBooksTableWorkKeys();
+
+      expect(stats.scanned).toBe(2);
+      expect(stats.updated).toBe(1);
+      expect(resolveWorkIdFromIsbn).toHaveBeenCalledWith('9780140449136');
     });
   });
 });

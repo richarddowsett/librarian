@@ -175,3 +175,120 @@ export async function fetchSeriesCatalogApi(series: string, options?: ApiOptions
     return [];
   }
 }
+
+export interface OpenLibraryListSummary {
+  url: string;
+  fullUrl?: string;
+  name: string;
+  seedCount: number;
+  lastUpdate?: string;
+}
+
+export async function fetchWorkListsApi(workIdOrIsbn: string, options?: ApiOptions): Promise<OpenLibraryListSummary[]> {
+  let cleanId = workIdOrIsbn.replace(/^\/works\//, '').trim();
+  if (!cleanId) return [];
+
+  // Try API Gateway endpoint first if available
+  if (API_BASE_URL) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/open-library/work-lists?workId=${encodeURIComponent(cleanId)}`, {
+        method: 'GET',
+        headers: getHeaders(options),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && Array.isArray(data.lists)) {
+          return data.lists;
+        }
+      }
+    } catch (e) {
+      // Fallback directly to Open Library API
+    }
+  }
+
+  // If cleanId is an ISBN (10/13 digits), resolve OpenLibrary workId first before querying fallback URL!
+  if (/^(?:\d{9}[\dX]|\d{13})$/i.test(cleanId.replace(/[-\s]/g, ''))) {
+    try {
+      const isbnClean = cleanId.replace(/[-\s]/g, '').toUpperCase();
+      const bibRes = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbnClean}&jscmd=data&format=json`, {
+        headers: { Accept: 'application/json' },
+      });
+      if (bibRes.ok) {
+        const bibData = await bibRes.json();
+        const raw = bibData[`ISBN:${isbnClean}`];
+        if (raw && Array.isArray(raw.works) && raw.works[0]?.key) {
+          cleanId = raw.works[0].key.replace(/^\/works\//, '');
+        }
+      }
+    } catch (err) {
+      // Ignore fallback resolution error
+    }
+  }
+
+  // Fallback direct Open Library call
+  try {
+    const res = await fetch(`https://openlibrary.org/works/${cleanId}/lists.json`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (!data.entries || !Array.isArray(data.entries)) return [];
+    const lists: OpenLibraryListSummary[] = data.entries.map((item: any) => ({
+      url: item.url || item.full_url || '',
+      fullUrl: item.full_url || item.url || '',
+      name: (item.name || 'Untitled List').trim(),
+      seedCount: typeof item.seed_count === 'number' ? item.seed_count : 0,
+      lastUpdate: item.last_update || undefined,
+    }));
+    return lists.sort((a, b) => b.seedCount - a.seedCount).slice(0, 3);
+  } catch (err) {
+    console.error('fetchWorkListsApi error:', err);
+    return [];
+  }
+}
+
+export async function importSeriesListApi(
+  listUrl: string,
+  listName: string,
+  workId?: string,
+  options?: ApiOptions
+): Promise<any | null> {
+  if (!API_BASE_URL) return null;
+  try {
+    const response = await fetch(`${API_BASE_URL}/series`, {
+      method: 'POST',
+      headers: getHeaders(options),
+      body: JSON.stringify({
+        listUrl,
+        listName,
+        workId,
+      }),
+    });
+
+    if (checkUnauthorized(response, options)) return null;
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.series || null;
+  } catch (error) {
+    console.error('importSeriesListApi Error:', error);
+    return null;
+  }
+}
+
+export async function fetchAllSeriesApi(options?: ApiOptions): Promise<any[]> {
+  if (!API_BASE_URL) return [];
+  try {
+    const response = await fetch(`${API_BASE_URL}/series`, {
+      method: 'GET',
+      headers: getHeaders(options),
+    });
+
+    if (checkUnauthorized(response, options)) return [];
+    if (!response.ok) return [];
+    const data = await response.json();
+    return data.series || [];
+  } catch (error) {
+    console.error('fetchAllSeriesApi Error:', error);
+    return [];
+  }
+}
