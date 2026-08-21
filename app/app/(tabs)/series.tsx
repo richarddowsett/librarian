@@ -317,9 +317,13 @@ export default function SeriesTrackerScreen() {
                               if (isOwned && book) {
                                 setSelectedOwnedBook(book);
                               } else {
+                                const unownedAuthor = (volItem.authors && volItem.authors.length > 0)
+                                  ? volItem.authors.join(', ')
+                                  : (volItem.book?.authors?.join(', ') || overview.books[0]?.authors?.join(', '));
+
                                 setSelectedUnownedBook({
                                   title: volItem.title,
-                                  authorName: volItem.book?.authors?.join(', '),
+                                  authorName: unownedAuthor,
                                   seriesName: overview.seriesName,
                                   seriesVolumeNumber: volItem.volumeNumber,
                                   coverUrl: volItem.coverUrl,

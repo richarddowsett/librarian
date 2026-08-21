@@ -405,9 +405,21 @@ export async function fetchOpenLibraryListSeeds(
         coverUrl = `https://covers.openlibrary.org/b/id/${workId}-L.jpg`;
       }
 
+      let authorsList: string[] = [];
+      if (Array.isArray(entry.author_name) && entry.author_name.length > 0) {
+        authorsList = entry.author_name.map((a: any) => (typeof a === 'string' ? a : a.name || '')).filter(Boolean);
+      } else if (Array.isArray(entry.author_names) && entry.author_names.length > 0) {
+        authorsList = entry.author_names.map((a: any) => (typeof a === 'string' ? a : a.name || '')).filter(Boolean);
+      } else if (Array.isArray(entry.authors) && entry.authors.length > 0) {
+        authorsList = entry.authors.map((a: any) => (typeof a === 'string' ? a : a.name || '')).filter(Boolean);
+      } else if (typeof entry.by_statement === 'string' && entry.by_statement.trim()) {
+        authorsList = [entry.by_statement.replace(/^by\s+/i, '').trim()];
+      }
+
       volumes.push({
         volumeNumber: volNum,
         title,
+        authors: authorsList.length > 0 ? authorsList : null,
         workId,
         coverUrl,
       });

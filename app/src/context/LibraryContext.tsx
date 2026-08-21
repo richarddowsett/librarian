@@ -8,6 +8,7 @@ export interface SeriesVolumeItem {
   volumeNumber: number;
   isOwned: boolean;
   title: string;
+  authors?: string[];
   book?: Book;
   coverUrl?: string;
   workId?: string;
@@ -306,6 +307,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const volCoverUrl = vol.coverUrl || (vol.workId ? `https://covers.openlibrary.org/b/id/${vol.workId.replace(/^\/works\//, '')}-L.jpg` : undefined);
         const volWorkId = vol.workId || undefined;
         const volIsbn = vol.isbn || undefined;
+        const volAuthors = Array.isArray(vol.authors) ? vol.authors : typeof vol.author === 'string' ? [vol.author] : undefined;
 
         if (ownedBook) {
           ownedBooksList.push(ownedBook);
@@ -313,6 +315,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
             volumeNumber: volNum,
             isOwned: true,
             title: ownedBook.title,
+            authors: ownedBook.authors,
             book: ownedBook,
             coverUrl: ownedBook.coverUrl || volCoverUrl,
             workId: ownedBook.workId || volWorkId,
@@ -324,6 +327,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
             volumeNumber: volNum,
             isOwned: false,
             title: volTitle,
+            authors: volAuthors,
             coverUrl: volCoverUrl,
             workId: volWorkId,
             isbn: volIsbn,

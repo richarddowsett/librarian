@@ -90,6 +90,7 @@ export interface OpenLibraryListSummary {
 export interface SeriesVolume {
   volumeNumber: number;
   title: string;
+  authors?: string[] | null;
   isbn?: string | null;
   workId?: string | null;
   coverUrl?: string | null;
