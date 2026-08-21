@@ -40,19 +40,25 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
   const [loadingLists, setLoadingLists] = useState<boolean>(false);
   const [addingListUrl, setAddingListUrl] = useState<string | null>(null);
   const [addedListUrls, setAddedListUrls] = useState<Set<string>>(new Set());
+  const [showListsSection, setShowListsSection] = useState<boolean>(true);
 
-  const matchingSeries = React.useMemo(() => {
-    if (!book) return null;
+  const matchingSeriesList = React.useMemo(() => {
+    if (!book) return [];
+    const matches: Array<{ seriesId?: string | null; seriesName: string; volumeNumber?: number | null }> = [];
+    const seenNames = new Set<string>();
 
     if (book.seriesName) {
-      return {
+      matches.push({
         seriesId: book.seriesId,
         seriesName: book.seriesName,
         volumeNumber: book.seriesVolumeNumber,
-      };
+      });
+      seenNames.add(book.seriesName.trim().toLowerCase());
     }
 
     for (const overview of seriesOverviews) {
+      if (seenNames.has(overview.seriesName.trim().toLowerCase())) continue;
+
       const isBookInSeries = overview.allVolumes.some((v) => {
         if (v.book?.id === book.id) return true;
         if (v.book?.workId && book.workId && v.book.workId.replace(/^\/works\//, '') === book.workId.replace(/^\/works\//, '')) return true;
@@ -60,16 +66,26 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
         if (v.title && book.title && v.title.trim().toLowerCase() === book.title.trim().toLowerCase()) return true;
         return false;
       });
+
       if (isBookInSeries) {
-        return {
+        const matchingVol = overview.allVolumes.find((v) => {
+          if (v.book?.id === book.id) return true;
+          if (v.book?.workId && book.workId && v.book.workId.replace(/^\/works\//, '') === book.workId.replace(/^\/works\//, '')) return true;
+          if (v.book?.isbn && book.isbn && v.book.isbn.replace(/[- ]/g, '').toUpperCase() === book.isbn.replace(/[- ]/g, '').toUpperCase()) return true;
+          if (v.title && book.title && v.title.trim().toLowerCase() === book.title.trim().toLowerCase()) return true;
+          return false;
+        });
+
+        matches.push({
           seriesId: overview.seriesId,
           seriesName: overview.seriesName,
-          volumeNumber: book.seriesVolumeNumber,
-        };
+          volumeNumber: matchingVol?.volumeNumber || book.seriesVolumeNumber,
+        });
+        seenNames.add(overview.seriesName.trim().toLowerCase());
       }
     }
 
-    return null;
+    return matches;
   }, [book, seriesOverviews]);
 
   React.useEffect(() => {
@@ -78,6 +94,7 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
       setReview(book.review || '');
       setReadStatus(book.readStatus || 'unread');
       setIsEditingReview(false);
+      setShowListsSection(matchingSeriesList.length === 0);
 
       const targetId = book.workId || (book.isbn && !book.isbn.startsWith('NOISBN') ? book.isbn : '');
       if (targetId) {
@@ -90,7 +107,7 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
         setTopLists([]);
       }
     }
-  }, [book]);
+  }, [book, matchingSeriesList.length]);
 
   const handleAddListToSeries = async (list: OpenLibraryListSummary) => {
     if (!list.url) return;
@@ -99,7 +116,20 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
       const res = await addSeriesList(list.url, list.name, book?.workId || undefined);
       if (res.success) {
         setAddedListUrls((prev) => new Set(prev).add(list.url));
-        Alert.alert('Series Added!', `"${list.name}" has been added to your Series Collection.`);
+        Alert.alert(
+          'Series Added!',
+          `"${list.name}" has been added to your Series Collection.`,
+          [
+            { text: 'OK', style: 'cancel' },
+            {
+              text: 'View Series',
+              onPress: () => {
+                onClose();
+                router.push('/(tabs)/series');
+              },
+            },
+          ]
+        );
       } else {
         Alert.alert('Error', res.error || 'Failed to add series list.');
       }
@@ -241,32 +271,36 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
                   By {book.authors.join(', ')}
                 </Text>
 
-                {matchingSeries ? (
-                  <TouchableOpacity
-                    onPress={() => {
-                      onClose();
-                      router.push('/(tabs)/series');
-                    }}
-                    activeOpacity={0.7}
-                    style={{
-                      alignSelf: 'flex-start',
-                      backgroundColor: 'rgba(2, 132, 199, 0.2)',
-                      borderColor: '#38bdf8',
-                      borderWidth: 1,
-                      paddingHorizontal: 10,
-                      paddingVertical: 5,
-                      borderRadius: 12,
-                      marginBottom: 8,
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <Ionicons name="layers-outline" size={14} color="#38bdf8" />
-                    <Text style={{ color: '#38bdf8', fontSize: 12, fontWeight: '700', includeFontPadding: false }}>
-                      Series: {matchingSeries.seriesName} {matchingSeries.volumeNumber ? `#${matchingSeries.volumeNumber}` : ''} → View Series
-                    </Text>
-                  </TouchableOpacity>
+                {matchingSeriesList.length > 0 ? (
+                  <View style={{ flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+                    {matchingSeriesList.map((s, index) => (
+                      <TouchableOpacity
+                        key={s.seriesId || `${s.seriesName}-${index}`}
+                        onPress={() => {
+                          onClose();
+                          router.push('/(tabs)/series');
+                        }}
+                        activeOpacity={0.7}
+                        style={{
+                          alignSelf: 'flex-start',
+                          backgroundColor: 'rgba(2, 132, 199, 0.2)',
+                          borderColor: '#38bdf8',
+                          borderWidth: 1,
+                          paddingHorizontal: 10,
+                          paddingVertical: 5,
+                          borderRadius: 12,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 6,
+                        }}
+                      >
+                        <Ionicons name="layers-outline" size={14} color="#38bdf8" />
+                        <Text style={{ color: '#38bdf8', fontSize: 12, fontWeight: '700', includeFontPadding: false }}>
+                          Series: {s.seriesName} {s.volumeNumber ? `#${s.volumeNumber}` : ''} → View Series
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 ) : null}
 
                 {Array.isArray(book.categories) && book.categories.length > 0 && (
@@ -363,121 +397,189 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
                   </Text>
                 </View>
 
-                {matchingSeries ? (
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                    <Text style={{ color: '#94a3b8', fontSize: 13 }}>Matched Series:</Text>
-                    <Text style={{ color: '#38bdf8', fontSize: 13, fontWeight: '600' }}>
-                      {matchingSeries.seriesName} {matchingSeries.volumeNumber ? `#${matchingSeries.volumeNumber}` : ''}
-                    </Text>
+                {matchingSeriesList.length > 0 ? (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <Text style={{ color: '#94a3b8', fontSize: 13 }}>Matched Series ({matchingSeriesList.length}):</Text>
+                    <View style={{ gap: 2, alignItems: 'flex-end' }}>
+                      {matchingSeriesList.map((s, idx) => (
+                        <Text key={idx} style={{ color: '#38bdf8', fontSize: 13, fontWeight: '600' }}>
+                          {s.seriesName} {s.volumeNumber ? `#${s.volumeNumber}` : ''}
+                        </Text>
+                      ))}
+                    </View>
                   </View>
                 ) : null}
               </View>
             </View>
 
             {/* Top 3 OpenLibrary Lists Section */}
-            <View
-              style={{
-                backgroundColor: '#0f172a',
-                borderRadius: 16,
-                padding: 16,
-                borderWidth: 1,
-                borderColor: '#334155',
-                marginBottom: 20,
-              }}
-            >
+            {matchingSeriesList.length > 0 && !showListsSection ? (
               <View
                 style={{
+                  backgroundColor: '#0f172a',
+                  borderRadius: 16,
+                  padding: 14,
+                  borderWidth: 1,
+                  borderColor: '#334155',
+                  marginBottom: 20,
                   flexDirection: 'row',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  marginBottom: 10,
                 }}
               >
-                <Text style={{ color: '#f8fafc', fontSize: 15, fontWeight: '700', includeFontPadding: false }}>
-                  OpenLibrary Series Lists
-                </Text>
-                <View
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '600', includeFontPadding: false }}>
+                    Book is already in {matchingSeriesList.length} {matchingSeriesList.length === 1 ? 'series' : 'series collections'}.
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setShowListsSection(true)}
                   style={{
-                    backgroundColor: 'rgba(56, 189, 248, 0.15)',
-                    paddingHorizontal: 8,
-                    paddingVertical: 2,
-                    borderRadius: 8,
+                    backgroundColor: '#1e293b',
+                    borderColor: '#38bdf8',
+                    borderWidth: 1,
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 10,
                   }}
                 >
-                  <Text style={{ color: '#38bdf8', fontSize: 11, fontWeight: '700', includeFontPadding: false }}>
-                    Top Lists
+                  <Text style={{ color: '#38bdf8', fontSize: 12, fontWeight: '700', includeFontPadding: false }}>
+                    Show Lists
                   </Text>
-                </View>
+                </TouchableOpacity>
               </View>
-
-              {loadingLists ? (
-                <View style={{ paddingVertical: 12, alignItems: 'center' }}>
-                  <ActivityIndicator size="small" color="#38bdf8" />
-                  <Text style={{ color: '#94a3b8', fontSize: 12, marginTop: 6, includeFontPadding: false }}>
-                    Searching OpenLibrary lists...
+            ) : (
+              <View
+                style={{
+                  backgroundColor: '#0f172a',
+                  borderRadius: 16,
+                  padding: 16,
+                  borderWidth: 1,
+                  borderColor: '#334155',
+                  marginBottom: 20,
+                }}
+              >
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: 10,
+                  }}
+                >
+                  <Text style={{ color: '#f8fafc', fontSize: 15, fontWeight: '700', includeFontPadding: false }}>
+                    OpenLibrary Series Lists
                   </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    {matchingSeriesList.length > 0 ? (
+                      <TouchableOpacity onPress={() => setShowListsSection(false)}>
+                        <Text style={{ color: '#94a3b8', fontSize: 12, fontWeight: '600', includeFontPadding: false }}>
+                          Collapse
+                        </Text>
+                      </TouchableOpacity>
+                    ) : null}
+                    <View
+                      style={{
+                        backgroundColor: 'rgba(56, 189, 248, 0.15)',
+                        paddingHorizontal: 8,
+                        paddingVertical: 2,
+                        borderRadius: 8,
+                      }}
+                    >
+                      <Text style={{ color: '#38bdf8', fontSize: 11, fontWeight: '700', includeFontPadding: false }}>
+                        Top Lists
+                      </Text>
+                    </View>
+                  </View>
                 </View>
-              ) : topLists.length > 0 ? (
-                <View style={{ gap: 10 }}>
-                  {topLists.map((list) => {
-                    const isAdded = addedListUrls.has(list.url);
-                    const isAdding = addingListUrl === list.url;
 
-                    return (
-                      <View
-                        key={list.url}
-                        style={{
-                          backgroundColor: '#1e293b',
-                          borderRadius: 12,
-                          padding: 12,
-                          borderWidth: 1,
-                          borderColor: '#334155',
-                          flexDirection: 'row',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          gap: 8,
-                        }}
-                      >
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ color: '#f8fafc', fontSize: 14, fontWeight: '700', includeFontPadding: false }}>
-                            {list.name}
-                          </Text>
-                          <Text style={{ color: '#94a3b8', fontSize: 12, marginTop: 2, includeFontPadding: false }}>
-                            {list.seedCount} {list.seedCount === 1 ? 'book' : 'books'} in series list
-                          </Text>
-                        </View>
+                {loadingLists ? (
+                  <View style={{ paddingVertical: 12, alignItems: 'center' }}>
+                    <ActivityIndicator size="small" color="#38bdf8" />
+                    <Text style={{ color: '#94a3b8', fontSize: 12, marginTop: 6, includeFontPadding: false }}>
+                      Searching OpenLibrary lists...
+                    </Text>
+                  </View>
+                ) : topLists.length > 0 ? (
+                  <View style={{ gap: 10 }}>
+                    {topLists.map((list) => {
+                      const isAdded = addedListUrls.has(list.url);
+                      const isAdding = addingListUrl === list.url;
 
-                        <TouchableOpacity
-                          onPress={() => handleAddListToSeries(list)}
-                          disabled={isAdded || isAdding}
+                      return (
+                        <View
+                          key={list.url}
                           style={{
-                            backgroundColor: isAdded ? '#059669' : '#0284c7',
-                            paddingHorizontal: 12,
-                            paddingVertical: 8,
-                            borderRadius: 8,
+                            backgroundColor: '#1e293b',
+                            borderRadius: 12,
+                            padding: 12,
+                            borderWidth: 1,
+                            borderColor: '#334155',
+                            flexDirection: 'row',
+                            justifyContent: 'space-between',
                             alignItems: 'center',
-                            justifyContent: 'center',
-                            opacity: isAdded || isAdding ? 0.8 : 1.0,
+                            gap: 8,
                           }}
                         >
-                          {isAdding ? (
-                            <ActivityIndicator size="small" color="#ffffff" />
-                          ) : (
-                            <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '700', includeFontPadding: false }}>
-                              {isAdded ? 'Added ✓' : '+ Add Series'}
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: '#f8fafc', fontSize: 14, fontWeight: '700', includeFontPadding: false }}>
+                              {list.name}
                             </Text>
-                          )}
-                        </TouchableOpacity>
-                      </View>
-                    );
-                  })}
-                </View>
-              ) : (
-                <Text style={{ color: '#64748b', fontSize: 13, fontStyle: 'italic', includeFontPadding: false }}>
-                  No OpenLibrary series lists found for this book work ID.
-                </Text>
-              )}
-            </View>
+                            <Text style={{ color: '#94a3b8', fontSize: 12, marginTop: 2, includeFontPadding: false }}>
+                              {list.seedCount} {list.seedCount === 1 ? 'book' : 'books'} in series list
+                            </Text>
+                          </View>
+
+                          <TouchableOpacity
+                            onPress={() => {
+                              if (isAdded) {
+                                onClose();
+                                router.push('/(tabs)/series');
+                              } else {
+                                handleAddListToSeries(list);
+                              }
+                            }}
+                            disabled={isAdding}
+                            style={{
+                              backgroundColor: isAdded ? 'rgba(34, 197, 94, 0.2)' : '#0284c7',
+                              borderColor: isAdded ? '#22c55e' : '#0284c7',
+                              borderWidth: 1,
+                              paddingHorizontal: 12,
+                              paddingVertical: 8,
+                              borderRadius: 8,
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              opacity: isAdding ? 0.8 : 1.0,
+                              flexDirection: 'row',
+                              gap: 4,
+                            }}
+                          >
+                            {isAdding ? (
+                              <ActivityIndicator size="small" color="#ffffff" />
+                            ) : isAdded ? (
+                              <>
+                                <Ionicons name="checkmark-circle" size={14} color="#22c55e" />
+                                <Text style={{ color: '#22c55e', fontSize: 12, fontWeight: '700', includeFontPadding: false }}>
+                                  Added ✓ (View Series)
+                                </Text>
+                              </>
+                            ) : (
+                              <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '700', includeFontPadding: false }}>
+                                + Add Series
+                              </Text>
+                            )}
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    })}
+                  </View>
+                ) : (
+                  <Text style={{ color: '#64748b', fontSize: 13, fontStyle: 'italic', includeFontPadding: false }}>
+                    No OpenLibrary series lists found for this book work ID.
+                  </Text>
+                )}
+              </View>
+            )}
 
             {/* Read Status Selection */}
             <View style={{ marginBottom: 20 }}>
