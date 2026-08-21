@@ -207,4 +207,61 @@ describe('DynamoDB Normalized 3-Table Service (Users, Books Catalog, User Librar
       expect(resolveWorkIdFromIsbn).toHaveBeenCalledWith('9780140449136');
     });
   });
+
+  describe('getBookById validation', () => {
+    it('throws an error if the catalog book has no ISBN', async () => {
+      const mockEntry = {
+        id: 'user-book-1',
+        userId: 'user-123',
+        bookId: 'catalog-book-123',
+        readStatus: 'read',
+        dateAdded: '2026-08-01T00:00:00.000Z',
+      };
+      const mockCatalogBook = {
+        id: 'catalog-book-123',
+        isbn: '', // missing ISBN
+        title: 'Book without ISBN',
+        authors: ['Unknown'],
+        createdAt: '2026-08-01T00:00:00.000Z',
+      };
+
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      mockSend.mockResolvedValueOnce({ Item: mockEntry }); // GetCommand on user_library table
+      mockSend.mockResolvedValueOnce({ Item: mockCatalogBook }); // GetCommand on books table
+
+      await expect(getBookById('user-123', 'user-book-1')).rejects.toThrow('Book ISBN is missing');
+      expect(consoleErrorSpy).toHaveBeenCalledWith('Error in mapToBook: Book ISBN is missing');
+      consoleErrorSpy.mockRestore();
+    });
+
+    it('throws an error if the catalog book has no workKey', async () => {
+      const mockEntry = {
+        id: 'user-book-2',
+        userId: 'user-123',
+        bookId: 'catalog-book-456',
+        readStatus: 'read',
+        dateAdded: '2026-08-01T00:00:00.000Z',
+      };
+      const mockCatalogBook = {
+        id: 'catalog-book-456',
+        isbn: '9780123456789',
+        title: 'Book without WorkKey',
+        authors: ['Unknown'],
+        createdAt: '2026-08-01T00:00:00.000Z',
+        workKey: null as any, // missing workKey
+      };
+
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      (resolveWorkIdFromIsbn as jest.Mock).mockResolvedValueOnce(null);
+
+      mockSend.mockResolvedValueOnce({ Item: mockEntry }); // GetCommand on user_library table
+      mockSend.mockResolvedValueOnce({ Item: mockCatalogBook }); // GetCommand on books table
+
+      await expect(getBookById('user-123', 'user-book-2')).rejects.toThrow('Book workId is missing');
+      expect(consoleErrorSpy).toHaveBeenCalledWith('Error in mapToBook: Book workId is missing. ISBN: 9780123456789');
+
+      consoleErrorSpy.mockRestore();
+    });
+  });
 });

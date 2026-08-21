@@ -1,5 +1,9 @@
 import { fetchBookByISBN } from './openLibrary';
 
+jest.mock('./apiClient', () => ({
+  lookupIsbnApi: jest.fn().mockResolvedValue(null),
+}));
+
 describe('Google Books ISBN Lookup Service', () => {
   beforeEach(() => {
     jest.clearAllMocks();

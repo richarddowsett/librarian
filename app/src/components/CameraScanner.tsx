@@ -9,17 +9,21 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 import { Camera, CameraView } from 'expo-camera';
-import { fetchBookByISBN, OpenLibraryBookResult } from '../services/openLibrary';
+import { fetchBookByISBN, GoogleBookResult } from '../services/openLibrary';
 import { useLibrary } from '../context/LibraryContext';
 import { Ionicons } from '@expo/vector-icons';
 import { BookFormModal } from './BookFormModal';
 
 interface CameraScannerProps {
   onBookCataloged?: () => void;
+  isFocused?: boolean;
 }
 
-export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged }) => {
+export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged, isFocused: propIsFocused }) => {
+  const hookIsFocused = useIsFocused();
+  const activeFocus = propIsFocused !== undefined ? propIsFocused : hookIsFocused;
   const { addBook, books } = useLibrary();
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [isScanning, setIsScanning] = useState<boolean>(true);
@@ -31,7 +35,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
   const [scanSuccess, setScanSuccess] = useState<boolean>(false);
 
   // Staged Queue for Multi-Book Bulk Scanning
-  const [stagedBooks, setStagedBooks] = useState<OpenLibraryBookResult[]>([]);
+  const [stagedBooks, setStagedBooks] = useState<GoogleBookResult[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [isManualModalOpen, setIsManualModalOpen] = useState<boolean>(false);
@@ -62,7 +66,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
     let stream: MediaStream | null = null;
     let scanInterval: any = null;
 
-    if (Platform.OS === 'web' && isScanning) {
+    if (Platform.OS === 'web' && isScanning && activeFocus) {
       (async () => {
         try {
           if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -91,7 +95,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
           });
 
           scanInterval = setInterval(async () => {
-            if (videoRef.current && videoRef.current.readyState === 4 && isScanning) {
+            if (videoRef.current && videoRef.current.readyState === 4 && isScanning && activeFocus) {
               try {
                 const barcodes = await barcodeDetector.detect(videoRef.current);
                 if (barcodes && barcodes.length > 0) {
@@ -116,8 +120,9 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
       if (stream) {
         stream.getTracks().forEach((track) => track.stop());
       }
+      setWebCamActive(false);
     };
-  }, [isScanning, Platform.OS]);
+  }, [isScanning, activeFocus, Platform.OS]);
 
   const playBarcodeBeep = () => {
     try {
@@ -333,7 +338,17 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged })
             marginBottom: 20,
           }}
         >
-          {Platform.OS !== 'web' && hasPermission ? (
+          {!activeFocus ? (
+            <View style={{ flex: 1, width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center', backgroundColor: '#0f172a' }}>
+              <Ionicons name="camera-outline" size={44} color="#64748b" />
+              <Text style={{ color: '#94a3b8', fontSize: 13, marginTop: 8, fontWeight: '700', includeFontPadding: false }}>
+                Camera Disabled
+              </Text>
+              <Text style={{ color: '#64748b', fontSize: 11, marginTop: 2, includeFontPadding: false }}>
+                Return to scan tab to reactivate
+              </Text>
+            </View>
+          ) : Platform.OS !== 'web' && hasPermission ? (
             /* Native Expo Camera View */
             <CameraView
               style={{ width: '100%', height: '100%' }}

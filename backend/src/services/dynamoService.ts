@@ -22,12 +22,19 @@ const USER_SERIES_STATUS_TABLE =
   process.env.USER_SERIES_STATUS_TABLE_NAME || 'librarian-dev-user-series-status';
 
 function mapToBook(entry: UserLibraryEntry, catalogBook: CatalogBook): Book {
-  const isNoIsbn = !catalogBook.isbn || catalogBook.isbn.startsWith('NOISBN');
+  if (!catalogBook.isbn) {
+    console.error('Error in mapToBook: Book ISBN is missing');
+    throw new Error('Book ISBN is missing');
+  }
+  if (!catalogBook.workKey) {
+    console.error(`Error in mapToBook: Book workId is missing. ISBN: ${catalogBook.isbn}`);
+    throw new Error('Book workId is missing');
+  }
   return {
     id: entry.id,
     ownerId: entry.userId,
     bookId: catalogBook.id,
-    isbn: isNoIsbn ? '' : catalogBook.isbn,
+    isbn: catalogBook.isbn,
     title: catalogBook.title,
     subtitle: catalogBook.subtitle || null,
     authors: catalogBook.authors || [],
@@ -38,7 +45,7 @@ function mapToBook(entry: UserLibraryEntry, catalogBook: CatalogBook): Book {
     description: catalogBook.description || null,
     categories: catalogBook.categories || [],
     language: catalogBook.language || null,
-    workId: catalogBook.workKey || null,
+    workId: catalogBook.workKey,
     readStatus: entry.readStatus,
     rating: entry.rating || null,
     review: entry.review || null,

@@ -3,10 +3,12 @@ import { View, Text, TouchableOpacity } from 'react-native';
 import { CameraScanner } from '../../src/components/CameraScanner';
 import { BookshelfScanner } from '../../src/components/BookshelfScanner';
 import { useRouter } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function ScanScreen() {
   const router = useRouter();
+  const isFocused = useIsFocused();
   const [scanMode, setScanMode] = useState<'barcode' | 'bookshelf'>('barcode');
 
   return (
@@ -95,6 +97,7 @@ export default function ScanScreen() {
       {/* Screen Body */}
       {scanMode === 'barcode' ? (
         <CameraScanner
+          isFocused={isFocused}
           onBookCataloged={() => {
             router.push('/');
           }}

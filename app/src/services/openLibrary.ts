@@ -1,6 +1,6 @@
 import { lookupIsbnApi } from './apiClient';
 
-export interface OpenLibraryBookResult {
+export interface GoogleBookResult {
   isbn: string;
   title: string;
   subtitle?: string;
@@ -16,31 +16,29 @@ export interface OpenLibraryBookResult {
   seriesVolumeNumber?: number;
 }
 
-export async function fetchBookByISBN(isbn: string): Promise<OpenLibraryBookResult | null> {
+export async function fetchBookByISBN(isbn: string): Promise<GoogleBookResult | null> {
   const sanitizedIsbn = isbn.replace(/[- ]/g, '').trim();
   if (!sanitizedIsbn) return null;
 
-  if (process.env.NODE_ENV !== 'test') {
-    try {
-      const remoteBook = await lookupIsbnApi(sanitizedIsbn);
-      if (remoteBook) {
-        return {
-          isbn: sanitizedIsbn,
-          title: remoteBook.title || 'Untitled',
-          subtitle: remoteBook.subtitle || undefined,
-          authors: remoteBook.authors || ['Unknown Author'],
-          coverUrl: remoteBook.coverUrl || undefined,
-          publisher: remoteBook.publisher || undefined,
-          publishDate: remoteBook.publishDate || undefined,
-          pageCount: remoteBook.pageCount || undefined,
-          description: remoteBook.description || undefined,
-          categories: remoteBook.categories || undefined,
-          language: remoteBook.language || undefined,
-        };
-      }
-    } catch (error) {
-      // Proceed to direct query fallback
+  try {
+    const remoteBook = await lookupIsbnApi(sanitizedIsbn);
+    if (remoteBook) {
+      return {
+        isbn: sanitizedIsbn,
+        title: remoteBook.title || 'Untitled',
+        subtitle: remoteBook.subtitle || undefined,
+        authors: remoteBook.authors || ['Unknown Author'],
+        coverUrl: remoteBook.coverUrl || undefined,
+        publisher: remoteBook.publisher || undefined,
+        publishDate: remoteBook.publishDate || undefined,
+        pageCount: remoteBook.pageCount || undefined,
+        description: remoteBook.description || undefined,
+        categories: remoteBook.categories || undefined,
+        language: remoteBook.language || undefined,
+      };
     }
+  } catch (error) {
+    // Proceed to direct query fallback
   }
 
   try {
