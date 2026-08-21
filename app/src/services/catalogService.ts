@@ -236,65 +236,140 @@ export interface CatalogBookDetails {
 const detailsCache = new Map<string, CatalogBookDetails>();
 
 /**
- * Fetches detailed Google Books metadata (publish date, blurb, page count, cover, categories) for unowned books.
+ * Fetches detailed book metadata (publish date, blurb, page count, cover, categories) for unowned books.
  */
 export async function fetchUnownedBookDetails(
   title: string,
-  authorName?: string
+  authorName?: string,
+  workId?: string,
+  isbn?: string
 ): Promise<CatalogBookDetails> {
-  const cacheKey = `${title.toLowerCase()}_${(authorName || '').toLowerCase()}`;
+  const cleanTitle = title.replace(/\s*\([^)]*\)/g, '').replace(/\s*\[[^\]]*\]/g, '').trim() || title;
+  const cacheKey = `${cleanTitle.toLowerCase()}_${(authorName || '').toLowerCase()}_${workId || ''}_${isbn || ''}`;
   if (detailsCache.has(cacheKey)) {
     return detailsCache.get(cacheKey)!;
   }
 
+  let description: string | undefined = undefined;
+  let coverUrl: string | undefined = undefined;
+  let authors: string[] = authorName ? [authorName] : ['Unknown Author'];
+  let publishDate: string | undefined = undefined;
+  let pageCount: number | undefined = undefined;
+  let publisher: string | undefined = undefined;
+  let categories: string[] | undefined = undefined;
+  let foundIsbn: string | undefined = isbn;
+
+  // 1. If Open Library Work ID is present, fetch Work JSON directly for exact blurb & cover!
+  if (workId) {
+    const cleanWorkId = workId.replace(/^\/works\//, '').trim();
+    if (cleanWorkId) {
+      try {
+        const olWorkUrl = `https://openlibrary.org/works/${cleanWorkId}.json`;
+        const olRes = await fetch(olWorkUrl);
+        if (olRes.ok) {
+          const olData = await olRes.json();
+          if (olData.description) {
+            if (typeof olData.description === 'string') {
+              description = olData.description.replace(/<[^>]*>?/gm, '').trim();
+            } else if (olData.description.value && typeof olData.description.value === 'string') {
+              description = olData.description.value.replace(/<[^>]*>?/gm, '').trim();
+            }
+          }
+          if (Array.isArray(olData.covers) && olData.covers.length > 0 && olData.covers[0] > 0) {
+            coverUrl = `https://covers.openlibrary.org/b/id/${olData.covers[0]}-L.jpg`;
+          }
+        }
+      } catch (e) {
+        console.warn('Error fetching OpenLibrary work details:', e);
+      }
+    }
+  }
+
+  // 2. Query Google Books for blurb, metadata, and high-res cover
   try {
-    const query = `intitle:${encodeURIComponent(title)}${authorName ? `+inauthor:${encodeURIComponent(authorName)}` : ''}`;
-    const googleUrl = `https://www.googleapis.com/books/v1/volumes?q=${query}&maxResults=1`;
+    const query = `q=${encodeURIComponent(cleanTitle)}${authorName ? `+inauthor:${encodeURIComponent(authorName)}` : ''}`;
+    const googleUrl = `https://www.googleapis.com/books/v1/volumes?${query}&maxResults=3`;
     const res = await fetch(googleUrl);
     if (res.ok) {
       const data = await res.json();
       if (data.items && data.items.length > 0) {
-        const volumeInfo = data.items[0].volumeInfo || {};
-        const description = volumeInfo.description
-          ? volumeInfo.description.replace(/<[^>]*>?/gm, '').trim()
-          : undefined;
+        const item = data.items.find((i: any) => i.volumeInfo?.description) || data.items[0];
+        const volumeInfo = item.volumeInfo || {};
 
-        const coverUrl =
-          volumeInfo.imageLinks?.extraLarge ||
-          volumeInfo.imageLinks?.large ||
-          volumeInfo.imageLinks?.medium ||
-          volumeInfo.imageLinks?.thumbnail;
+        if (!description && volumeInfo.description) {
+          description = volumeInfo.description.replace(/<[^>]*>?/gm, '').trim();
+        }
 
-        const isbnObj = Array.isArray(volumeInfo.industryIdentifiers)
-          ? volumeInfo.industryIdentifiers.find((i: any) => i.type === 'ISBN_13' || i.type === 'ISBN_10')
-          : undefined;
+        if (!coverUrl) {
+          const gCover =
+            volumeInfo.imageLinks?.extraLarge ||
+            volumeInfo.imageLinks?.large ||
+            volumeInfo.imageLinks?.medium ||
+            volumeInfo.imageLinks?.thumbnail ||
+            volumeInfo.imageLinks?.smallThumbnail;
+          if (gCover) {
+            coverUrl = gCover.replace(/^http:/, 'https:');
+          }
+        }
 
-        const result: CatalogBookDetails = {
-          title: volumeInfo.title || title,
-          subtitle: volumeInfo.subtitle || undefined,
-          authors: volumeInfo.authors || (authorName ? [authorName] : ['Unknown Author']),
-          description,
-          publishDate: volumeInfo.publishedDate,
-          pageCount: volumeInfo.pageCount,
-          publisher: volumeInfo.publisher,
-          categories: volumeInfo.categories,
-          language: volumeInfo.language,
-          coverUrl: coverUrl ? coverUrl.replace(/^http:/, 'https:') : undefined,
-          isbn: isbnObj?.identifier,
-        };
+        if (Array.isArray(volumeInfo.authors) && volumeInfo.authors.length > 0) {
+          authors = volumeInfo.authors;
+        }
 
-        detailsCache.set(cacheKey, result);
-        return result;
+        if (volumeInfo.publishedDate) publishDate = volumeInfo.publishedDate;
+        if (volumeInfo.pageCount) pageCount = volumeInfo.pageCount;
+        if (volumeInfo.publisher) publisher = volumeInfo.publisher;
+        if (volumeInfo.categories) categories = volumeInfo.categories;
+
+        if (!foundIsbn && Array.isArray(volumeInfo.industryIdentifiers)) {
+          const isbnObj = volumeInfo.industryIdentifiers.find(
+            (i: any) => i.type === 'ISBN_13' || i.type === 'ISBN_10'
+          );
+          if (isbnObj) foundIsbn = isbnObj.identifier;
+        }
       }
     }
   } catch (err) {
     console.warn('Error fetching Google Books details:', err);
   }
 
-  const fallback: CatalogBookDetails = {
+  // 3. Fallback: Open Library Search API if description or cover is still missing
+  if (!description || !coverUrl) {
+    try {
+      const olSearchUrl = `https://openlibrary.org/search.json?q=${encodeURIComponent(cleanTitle)}&limit=1`;
+      const olRes = await fetch(olSearchUrl);
+      if (olRes.ok) {
+        const olData = await olRes.json();
+        if (olData.docs && olData.docs.length > 0) {
+          const doc = olData.docs[0];
+          if (!coverUrl && doc.cover_i) {
+            coverUrl = `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`;
+          }
+          if (!description && Array.isArray(doc.first_sentence) && doc.first_sentence.length > 0) {
+            description = `First Sentence: "${doc.first_sentence[0]}"`;
+          }
+          if ((!authors || authors[0] === 'Unknown Author') && Array.isArray(doc.author_name)) {
+            authors = doc.author_name;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Error fetching OpenLibrary search fallback:', e);
+    }
+  }
+
+  const result: CatalogBookDetails = {
     title,
-    authors: authorName ? [authorName] : ['Unknown Author'],
+    authors,
+    description: description || undefined,
+    publishDate,
+    pageCount,
+    publisher,
+    categories,
+    coverUrl,
+    isbn: foundIsbn,
   };
-  detailsCache.set(cacheKey, fallback);
-  return fallback;
+
+  detailsCache.set(cacheKey, result);
+  return result;
 }

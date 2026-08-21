@@ -20,6 +20,8 @@ interface UnownedBookModalProps {
   seriesName?: string;
   seriesVolumeNumber?: number;
   initialCoverUrl?: string;
+  workId?: string;
+  isbn?: string;
 }
 
 export const UnownedBookModal: React.FC<UnownedBookModalProps> = ({
@@ -30,6 +32,8 @@ export const UnownedBookModal: React.FC<UnownedBookModalProps> = ({
   seriesName,
   seriesVolumeNumber,
   initialCoverUrl,
+  workId,
+  isbn,
 }) => {
   const { addBook } = useLibrary();
   const [details, setDetails] = useState<CatalogBookDetails | null>(null);
@@ -41,7 +45,7 @@ export const UnownedBookModal: React.FC<UnownedBookModalProps> = ({
     if (visible && title) {
       setLoading(true);
       setAdded(false);
-      fetchUnownedBookDetails(title, authorName)
+      fetchUnownedBookDetails(title, authorName, workId, isbn)
         .then((data) => {
           setDetails(data);
         })
@@ -49,7 +53,7 @@ export const UnownedBookModal: React.FC<UnownedBookModalProps> = ({
           setLoading(false);
         });
     }
-  }, [visible, title, authorName]);
+  }, [visible, title, authorName, workId, isbn]);
 
   if (!visible) return null;
 

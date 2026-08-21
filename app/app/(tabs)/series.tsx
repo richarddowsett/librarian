@@ -19,6 +19,8 @@ export default function SeriesTrackerScreen() {
     seriesName?: string;
     seriesVolumeNumber?: number;
     coverUrl?: string;
+    workId?: string;
+    isbn?: string;
   } | null>(null);
 
   const isSmallScreen = width < 420;
@@ -317,8 +319,12 @@ export default function SeriesTrackerScreen() {
                               } else {
                                 setSelectedUnownedBook({
                                   title: volItem.title,
+                                  authorName: volItem.book?.authors?.join(', '),
                                   seriesName: overview.seriesName,
                                   seriesVolumeNumber: volItem.volumeNumber,
+                                  coverUrl: volItem.coverUrl,
+                                  workId: volItem.workId,
+                                  isbn: volItem.isbn,
                                 });
                               }
                             }}
@@ -330,7 +336,7 @@ export default function SeriesTrackerScreen() {
                               borderWidth: 1,
                               borderColor: isOwned ? '#334155' : '#f59e0b',
                               borderStyle: isOwned ? 'solid' : 'dashed',
-                              opacity: isOwned ? 1.0 : 0.5,
+                              opacity: isOwned ? 1.0 : 0.65,
                               alignItems: 'center',
                             }}
                           >
@@ -346,10 +352,10 @@ export default function SeriesTrackerScreen() {
                                 justifyContent: 'center',
                               }}
                             >
-                              {isOwned && book?.coverUrl ? (
+                              {(isOwned && book?.coverUrl) || (!isOwned && volItem.coverUrl) ? (
                                 <Image
-                                  source={{ uri: book.coverUrl }}
-                                  style={{ width: '100%', height: '100%', resizeMode: 'cover' }}
+                                  source={{ uri: (isOwned && book?.coverUrl) ? book.coverUrl : volItem.coverUrl! }}
+                                  style={{ width: '100%', height: '100%', resizeMode: 'cover', opacity: isOwned ? 1.0 : 0.7 }}
                                 />
                               ) : isOwned ? (
                                 <Ionicons name="book" size={28} color="#38bdf8" />
@@ -686,6 +692,8 @@ export default function SeriesTrackerScreen() {
         seriesName={selectedUnownedBook?.seriesName}
         seriesVolumeNumber={selectedUnownedBook?.seriesVolumeNumber}
         initialCoverUrl={selectedUnownedBook?.coverUrl}
+        workId={selectedUnownedBook?.workId}
+        isbn={selectedUnownedBook?.isbn}
       />
     </PullToRefreshScrollView>
   );

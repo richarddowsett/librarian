@@ -382,10 +382,12 @@ export async function fetchOpenLibraryListSeeds(
       const volNum = extractVolumeNumber(title) || index + 1;
 
       let workId: string | null = null;
-      const rawUrl = entry.url || entry.full_url || '';
+      const rawUrl = entry.url || entry.full_url || entry.key || '';
       if (rawUrl.includes('/works/')) {
         const match = rawUrl.match(/\/works\/([^\/\s]+)/);
         if (match) workId = match[1];
+      } else if (/^OL\d+W$/i.test(rawUrl.trim())) {
+        workId = rawUrl.trim();
       }
 
       let coverUrl: string | null = null;
@@ -395,6 +397,12 @@ export async function fetchOpenLibraryListSeeds(
           picUrl = `https:${picUrl}`;
         }
         coverUrl = picUrl;
+      } else if (entry.cover_i) {
+        coverUrl = `https://covers.openlibrary.org/b/id/${entry.cover_i}-L.jpg`;
+      } else if (Array.isArray(entry.covers) && entry.covers.length > 0 && entry.covers[0] > 0) {
+        coverUrl = `https://covers.openlibrary.org/b/id/${entry.covers[0]}-L.jpg`;
+      } else if (workId) {
+        coverUrl = `https://covers.openlibrary.org/b/id/${workId}-L.jpg`;
       }
 
       volumes.push({
