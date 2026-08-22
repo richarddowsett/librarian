@@ -1,4 +1,4 @@
-name: Deploy Infrastructure & Backend (Terraform)
+name: Deploy Infrastructure (GCP Terraform)
 
 on:
   push:
@@ -6,55 +6,42 @@ on:
       - main
     paths:
       - 'terraform/**'
-      - 'backend/**'
       - '.github/workflows/deploy-terraform.yml'
   pull_request:
     branches:
       - main
     paths:
       - 'terraform/**'
-      - 'backend/**'
       - '.github/workflows/deploy-terraform.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
   id-token: write
-  pull-requests: write
 
 jobs:
   deploy:
-    name: Build Backend & Apply Terraform
+    name: Terraform Plan & Apply (GCP)
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Authenticate to Google Cloud
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        uses: google-github-actions/auth@v2
         with:
-          node-version: 20
-          cache: 'npm'
-          cache-dependency-path: backend/package-lock.json
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Install & Build Backend Handlers
-        run: |
-          cd backend
-          npm ci
-          npm run build
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION || 'eu-central-1' }}
+      - name: Setup gcloud CLI
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        uses: google-github-actions/setup-gcloud@v2
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.15.0
+          terraform_version: 1.5.7
 
       - name: Terraform Format Check
         run: |
@@ -73,17 +60,13 @@ jobs:
 
       - name: Terraform Plan
         id: plan
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         run: |
           cd terraform
           terraform plan -no-color -input=false
-        env:
-          TF_VAR_environment: ${{ secrets.ENVIRONMENT || 'dev' }}
 
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         run: |
           cd terraform
           terraform apply -auto-approve -input=false
-        env:
-          TF_VAR_environment: ${{ secrets.ENVIRONMENT || 'dev' }}
-
