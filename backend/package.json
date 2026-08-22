@@ -6,7 +6,7 @@
   "scripts": {
     "test": "jest",
     "test:coverage": "jest --coverage",
-    "build": "npx tsc && node build.js",
+    "build": "node node_modules/typescript/bin/tsc && node build.js",
     "gcp-build": "npm run build",
     "start": "node dist/server.js"
   },
@@ -14,15 +14,15 @@
     "@google-cloud/secret-manager": "^5.6.0",
     "@google-cloud/storage": "^7.13.0",
     "@google/genai": "^2.6.0",
-    "firebase-admin": "^12.6.0"
+    "esbuild": "^0.20.2",
+    "firebase-admin": "^12.6.0",
+    "typescript": "^5.3.3"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.138",
     "@types/jest": "^29.5.12",
     "@types/node": "^20.11.0",
-    "esbuild": "^0.20.2",
     "jest": "^29.7.0",
-    "ts-jest": "^29.1.2",
-    "typescript": "^5.3.3"
+    "ts-jest": "^29.1.2"
   }
 }
