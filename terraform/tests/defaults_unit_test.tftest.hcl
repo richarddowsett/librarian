@@ -1,34 +1,18 @@
 variables {
-  aws_region   = "eu-central-1"
-  environment  = "dev"
-  project_name = "librarian"
+  gcp_project_id = "shelfd-506308"
+  gcp_region     = "europe-west1"
 }
 
-run "verify_default_configuration_and_outputs" {
+run "verify_default_gcp_configuration" {
   command = plan
 
   assert {
-    condition     = var.aws_region == "eu-central-1"
-    error_message = "Default AWS region should be eu-central-1"
+    condition     = var.gcp_project_id == "shelfd-506308"
+    error_message = "Default GCP Project ID should be shelfd-506308"
   }
 
   assert {
-    condition     = var.environment == "dev"
-    error_message = "Default environment should be dev"
-  }
-
-  assert {
-    condition     = aws_cognito_user_pool.main.name == "librarian-dev-user-pool"
-    error_message = "Cognito User Pool name prefix should be librarian-dev"
-  }
-
-  assert {
-    condition     = aws_dynamodb_table.books.billing_mode == "PAY_PER_REQUEST"
-    error_message = "DynamoDB Books table should use PAY_PER_REQUEST billing mode for cost efficiency"
-  }
-
-  assert {
-    condition     = output.budget_limit == "13 USD"
-    error_message = "Budget limit output should reflect configured budget amount"
+    condition     = var.gcp_region == "europe-west1"
+    error_message = "Default GCP region should be europe-west1"
   }
 }

@@ -13,7 +13,67 @@ import {
   updateBook,
 } from '../firestoreService';
 
+const firestoreStore: Record<string, Record<string, any>> = {
+  users: {},
+  books: {},
+  userLibrary: {},
+  series: {},
+  userSeriesStatus: {},
+};
+
+jest.mock('firebase-admin', () => {
+  const mockDoc = (collectionName: string, id: string) => ({
+    get: jest.fn().mockImplementation(async () => ({
+      exists: Boolean(firestoreStore[collectionName]?.[id]),
+      data: () => firestoreStore[collectionName]?.[id],
+    })),
+    set: jest.fn().mockImplementation(async (data: any) => {
+      if (!firestoreStore[collectionName]) firestoreStore[collectionName] = {};
+      firestoreStore[collectionName][id] = { ...(firestoreStore[collectionName][id] || {}), ...data };
+    }),
+    delete: jest.fn().mockImplementation(async () => {
+      if (firestoreStore[collectionName]) {
+        delete firestoreStore[collectionName][id];
+      }
+    }),
+  });
+
+  const mockCollection = (collectionName: string) => ({
+    doc: (id: string) => mockDoc(collectionName, id),
+    where: (field: string, op: string, value: any) => ({
+      get: jest.fn().mockImplementation(async () => {
+        const docs = Object.values(firestoreStore[collectionName] || {})
+          .filter((item) => item[field] === value)
+          .map((data) => ({ data: () => data }));
+        return { empty: docs.length === 0, docs };
+      }),
+    }),
+    get: jest.fn().mockImplementation(async () => {
+      const docs = Object.values(firestoreStore[collectionName] || {}).map((data) => ({
+        data: () => data,
+      }));
+      return { size: docs.length, docs };
+    }),
+  });
+
+  return {
+    apps: ['mock-app'],
+    initializeApp: jest.fn(),
+    firestore: () => ({
+      collection: (name: string) => mockCollection(name),
+    }),
+  };
+});
+
 describe('Database and Firestore Service Operations', () => {
+  beforeEach(() => {
+    firestoreStore.users = {};
+    firestoreStore.books = {};
+    firestoreStore.userLibrary = {};
+    firestoreStore.series = {};
+    firestoreStore.userSeriesStatus = {};
+  });
+
   it('handles series creation and retrieval', async () => {
     const seriesData: SeriesDetails = {
       id: 'series_hp',

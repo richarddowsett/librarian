@@ -1,14 +1,2 @@
-aws_region          = "eu-central-1"
-environment         = "dev"
-project_name        = "librarian"
-waf_rate_limit      = 2000
-
-# Monthly Billing Budget ($13 USD is approx £10 GBP) & Alerts
-monthly_budget_limit_usd  = 13.0
-budget_notification_email = "your-email@example.com"
-
-# Optional: OAuth 2.0 Credentials for Federated Identity Providers in Cognito
-google_client_id     = ""
-google_client_secret = ""
-apple_client_id      = ""
-
+gcp_project_id = "shelfd-506308"
+gcp_region     = "europe-west1"
