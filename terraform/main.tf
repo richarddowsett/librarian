@@ -42,3 +42,39 @@ resource "google_project_service" "firebase" {
 
   disable_on_destroy = false
 }
+
+resource "google_project_service" "cloudbuild" {
+  project = local.project_id
+  service = "cloudbuild.googleapis.com"
+
+  disable_on_destroy = false
+}
+
+resource "google_project_service" "artifactregistry" {
+  project = local.project_id
+  service = "artifactregistry.googleapis.com"
+
+  disable_on_destroy = false
+}
+
+data "google_project" "project" {
+  project_id = local.project_id
+}
+
+resource "google_project_iam_member" "compute_storage_admin" {
+  project = local.project_id
+  role    = "roles/storage.admin"
+  member  = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
+}
+
+resource "google_project_iam_member" "compute_builder" {
+  project = local.project_id
+  role    = "roles/cloudbuild.builds.builder"
+  member  = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
+}
+
+resource "google_project_iam_member" "compute_artifact_writer" {
+  project = local.project_id
+  role    = "roles/artifactregistry.writer"
+  member  = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
+}
