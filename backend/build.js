@@ -15,6 +15,7 @@ async function build() {
     { entry: 'src/handlers/openLibraryHandler.ts', outfile: 'dist/handlers/openLibrary.js' },
     { entry: 'src/handlers/googleBooksHandler.ts', outfile: 'dist/handlers/googleBooks.js' },
     { entry: 'src/handlers/bookshelfAiHandler.ts', outfile: 'dist/handlers/bookshelfAi.js' },
+    { entry: 'src/server.ts', outfile: 'dist/server.js' },
   ];
 
   for (const h of handlers) {
