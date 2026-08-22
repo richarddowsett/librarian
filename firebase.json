@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "shelfd-506308",
     "public": "app/dist",
     "ignore": [
       "firebase.json",

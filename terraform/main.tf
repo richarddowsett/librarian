@@ -43,6 +43,13 @@ resource "google_project_service" "firebase" {
   disable_on_destroy = false
 }
 
+resource "google_project_service" "firebasehosting" {
+  project = local.project_id
+  service = "firebasehosting.googleapis.com"
+
+  disable_on_destroy = false
+}
+
 resource "google_project_service" "cloudbuild" {
   project = local.project_id
   service = "cloudbuild.googleapis.com"
