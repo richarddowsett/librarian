@@ -52,45 +52,14 @@ jobs:
         env:
           EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
 
-      - name: Configure AWS Credentials
+      - name: Deploy to Firebase Hosting
         if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: FirebaseExtended/action-hosting-deploy@v0
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION || 'eu-central-1' }}
-
-      - name: Sync Web Bundle to S3 Bucket
-        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-        env:
-          S3_BUCKET_NAME: ${{ secrets.S3_FRONTEND_BUCKET || 'shelfd-frontend-bucket' }}
-        run: |
-          aws s3 sync dist "s3://$S3_BUCKET_NAME" --delete
-
-      - name: Clear CloudFront CDN Cache
-        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-        env:
-          DISTRIBUTION_ID_SECRET: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
-          S3_BUCKET_NAME: ${{ secrets.S3_FRONTEND_BUCKET || 'shelfd-frontend-bucket' }}
-        run: |
-          DIST_ID="$DISTRIBUTION_ID_SECRET"
-          if [ -z "$DIST_ID" ] || [ "$DIST_ID" == "None" ] || [ "$DIST_ID" == "null" ]; then
-            echo "Searching for CloudFront Distribution ID by comment..."
-            DIST_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?Comment=='CloudFront Distribution for Shelfd Frontend SPA'].Id | [0]" --output text)
-          fi
-
-          if [ -z "$DIST_ID" ] || [ "$DIST_ID" == "None" ] || [ "$DIST_ID" == "null" ]; then
-            echo "Searching for CloudFront Distribution ID by S3 bucket origin..."
-            DIST_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?Origins.Items[?contains(DomainName, '$S3_BUCKET_NAME')]].Id | [0]" --output text)
-          fi
-
-          if [ -n "$DIST_ID" ] && [ "$DIST_ID" != "None" ] && [ "$DIST_ID" != "null" ]; then
-            echo "Invalidating CloudFront CDN Cache for Distribution ID: $DIST_ID..."
-            INVALIDATION_ID=$(aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*" --query "Invalidation.Id" --output text)
-            echo "Successfully submitted CloudFront cache invalidation request: $INVALIDATION_ID for distribution $DIST_ID"
-          else
-            echo "::warning::CloudFront Distribution ID could not be found. Skipping cache invalidation."
-          fi
+          repoToken: "${{ secrets.GITHUB_TOKEN }}"
+          firebaseServiceAccount: "${{ secrets.FIREBASE_SERVICE_ACCOUNT_SHELFD_506308 }}"
+          channelId: live
+          projectId: shelfd-506308
 
       - name: Check Expo Token Presence
         id: check-token

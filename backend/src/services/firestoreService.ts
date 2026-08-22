@@ -1,293 +1,367 @@
-import { Book, SeriesDetails, UserSeriesStatus } from '../types';
+import * as admin from 'firebase-admin';
+import { Book, CatalogBook, User, UserLibraryEntry, SeriesDetails, UserSeriesStatus } from '../types';
+import { fetchBookByISBN as fetchGoogleBookByISBN, searchBooksByTitleAndAuthor as searchGoogleBooks } from './googleBooks';
+import { resolveWorkIdFromIsbn } from './openLibrary';
 
-/**
- * In-memory fallback mock storage for offline / dev mode.
- */
-class LocalMockDatabase {
-  books: Map<string, Book> = new Map();
-  series: Map<string, SeriesDetails> = new Map();
-  userSeriesStatus: Map<string, UserSeriesStatus> = new Map();
+// Initialize Firebase Admin SDK if not initialized
+if (admin.apps.length === 0) {
+  admin.initializeApp();
+}
 
-  reset() {
-    this.books.clear();
-    this.series.clear();
-    this.userSeriesStatus.clear();
+const db = admin.firestore();
+
+function mapToBook(entry: UserLibraryEntry, catalogBook: CatalogBook): Book {
+  if (!catalogBook.isbn) {
+    console.error('Error in mapToBook: Book ISBN is missing');
+    throw new Error('Book ISBN is missing');
   }
-}
-
-const mockDb = new LocalMockDatabase();
-
-let isOfflineOrDevMode = true; // Default to dev/mock mode unless explicitly connected to Firestore
-let firestoreInstance: any = null;
-
-/**
- * Configures the mode for Firestore services.
- */
-export function setDevOrOfflineMode(offline: boolean, firestoreDb?: any) {
-  isOfflineOrDevMode = offline;
-  firestoreInstance = firestoreDb || null;
-}
-
-/**
- * Checks if the service is running in mock/offline mode.
- */
-export function isOfflineMode(): boolean {
-  return isOfflineOrDevMode || !firestoreInstance;
-}
-
-/**
- * Resets the in-memory mock database (useful for unit testing).
- */
-export function resetMockDatabase(): void {
-  mockDb.reset();
+  if (!catalogBook.workKey) {
+    console.error(`Error in mapToBook: Book workId is missing. ISBN: ${catalogBook.isbn}`);
+    throw new Error('Book workId is missing');
+  }
+  return {
+    id: entry.id,
+    ownerId: entry.userId,
+    bookId: catalogBook.id,
+    isbn: catalogBook.isbn,
+    title: catalogBook.title,
+    subtitle: catalogBook.subtitle || null,
+    authors: catalogBook.authors || [],
+    coverUrl: catalogBook.coverUrl || null,
+    publisher: catalogBook.publisher || null,
+    publishDate: catalogBook.publishDate || null,
+    pageCount: catalogBook.pageCount || 0,
+    description: catalogBook.description || null,
+    categories: catalogBook.categories || [],
+    language: catalogBook.language || null,
+    workId: catalogBook.workKey,
+    readStatus: entry.readStatus,
+    rating: entry.rating || null,
+    review: entry.review || null,
+    seriesId: entry.seriesId || null,
+    seriesName: entry.seriesName || null,
+    seriesVolumeNumber: entry.seriesVolumeNumber || null,
+    dateAdded: entry.dateAdded,
+    dateRead: entry.dateRead || null,
+  };
 }
 
 // ----------------------------------------------------
-// BOOK CRUD OPERATIONS
+// USERS COLLECTION OPERATIONS
 // ----------------------------------------------------
 
-export async function addBook(bookData: Omit<Book, 'id' | 'dateAdded'>): Promise<Book> {
-  const newId = `book_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-  const dateAdded = new Date().toISOString();
+export async function getUserById(id: string): Promise<User | null> {
+  const doc = await db.collection('users').doc(id).get();
+  return doc.exists ? (doc.data() as User) : null;
+}
 
-  const newBook: Book = {
-    ...bookData,
-    id: newId,
-    dateAdded,
+export async function putUser(user: User): Promise<User> {
+  await db.collection('users').doc(user.id).set(user, { merge: true });
+  return user;
+}
+
+// ----------------------------------------------------
+// SHARED BOOKS CATALOG OPERATIONS
+// ----------------------------------------------------
+
+export async function ensureCatalogBookWorkKey(catalogBook: CatalogBook): Promise<CatalogBook> {
+  if (catalogBook.workKey && (catalogBook.workKey.startsWith('OL') || catalogBook.workKey.includes('/works/'))) {
+    return catalogBook;
+  }
+
+  if (catalogBook.isbn && !catalogBook.isbn.startsWith('NOISBN')) {
+    try {
+      const resolvedWorkId = await resolveWorkIdFromIsbn(catalogBook.isbn);
+      if (resolvedWorkId) {
+        const updated: CatalogBook = {
+          ...catalogBook,
+          workKey: resolvedWorkId,
+        };
+        await putCatalogBook(updated);
+        return updated;
+      }
+    } catch (err) {
+      // Ignore lookup error
+    }
+  }
+  return catalogBook;
+}
+
+export async function findCatalogBookByIsbn(isbn: string): Promise<CatalogBook | null> {
+  const cleanIsbn = isbn.replace(/[-\s]/g, '').trim().toUpperCase();
+  if (!cleanIsbn || cleanIsbn.startsWith('NOISBN')) return null;
+
+  const snapshot = await db.collection('books').where('isbn', '==', cleanIsbn).limit(1).get();
+  if (snapshot.empty) return null;
+  const catalogBook = snapshot.docs[0].data() as CatalogBook;
+  return ensureCatalogBookWorkKey(catalogBook);
+}
+
+export async function getCatalogBookById(id: string): Promise<CatalogBook | null> {
+  const doc = await db.collection('books').doc(id).get();
+  if (!doc.exists) return null;
+  const item = doc.data() as CatalogBook;
+  return ensureCatalogBookWorkKey(item);
+}
+
+export async function putCatalogBook(catalogBook: CatalogBook): Promise<CatalogBook> {
+  await db.collection('books').doc(catalogBook.id).set(catalogBook, { merge: true });
+  return catalogBook;
+}
+
+export async function backfillBooksTableWorkKeys(): Promise<{ scanned: number; updated: number }> {
+  let scanned = 0;
+  let updated = 0;
+
+  try {
+    const snapshot = await db.collection('books').get();
+    scanned = snapshot.size;
+
+    for (const doc of snapshot.docs) {
+      const item = doc.data() as CatalogBook;
+      if (!item.workKey || (!item.workKey.startsWith('OL') && !item.workKey.includes('/works/'))) {
+        if (item.isbn && !item.isbn.startsWith('NOISBN')) {
+          const resolvedId = await resolveWorkIdFromIsbn(item.isbn);
+          if (resolvedId) {
+            const updatedBook: CatalogBook = {
+              ...item,
+              workKey: resolvedId,
+            };
+            await putCatalogBook(updatedBook);
+            updated++;
+          }
+        }
+      }
+    }
+  } catch (err) {
+    if (process.env.NODE_ENV !== 'test') {
+      console.error('Error in backfillBooksTableWorkKeys:', err);
+    }
+  }
+
+  return { scanned, updated };
+}
+
+// ----------------------------------------------------
+// USER LIBRARY JUNCTION & BOOK OPERATIONS
+// ----------------------------------------------------
+
+export async function getBooksByOwner(userId: string): Promise<Book[]> {
+  const snapshot = await db.collection('userLibrary').where('userId', '==', userId).get();
+  const entries = snapshot.docs.map((doc) => doc.data() as UserLibraryEntry);
+
+  const books: Book[] = [];
+  for (const entry of entries) {
+    const catalogBook = await getCatalogBookById(entry.bookId);
+    if (catalogBook) {
+      books.push(mapToBook(entry, catalogBook));
+    }
+  }
+  return books;
+}
+
+export async function getBookById(userId: string, id: string): Promise<Book | null> {
+  const doc = await db.collection('userLibrary').doc(id).get();
+  if (!doc.exists) return null;
+  const entry = doc.data() as UserLibraryEntry;
+  if (entry.userId !== userId) return null;
+
+  const catalogBook = await getCatalogBookById(entry.bookId);
+  if (!catalogBook) return null;
+
+  return mapToBook(entry, catalogBook);
+}
+
+export async function addBookForUser(userId: string, input: any): Promise<Book> {
+  let cleanIsbn = (input.isbn || '').replace(/[-\s]/g, '').trim().toUpperCase();
+  if (cleanIsbn.startsWith('NOISBN')) {
+    cleanIsbn = '';
+  }
+
+  let catalogBook: CatalogBook | null = null;
+
+  if (cleanIsbn) {
+    catalogBook = await findCatalogBookByIsbn(cleanIsbn);
+  }
+
+  if (!catalogBook && !cleanIsbn && input.title) {
+    try {
+      const firstAuthor = Array.isArray(input.authors) && input.authors.length > 0 ? input.authors[0] : '';
+      const searchHits = await searchGoogleBooks(input.title, firstAuthor);
+      if (searchHits && searchHits.length > 0) {
+        const hitWithIsbn = searchHits.find((b) => b.isbn && !b.isbn.startsWith('NOISBN'));
+        if (hitWithIsbn && hitWithIsbn.isbn) {
+          cleanIsbn = hitWithIsbn.isbn;
+          catalogBook = await findCatalogBookByIsbn(cleanIsbn);
+        }
+      }
+    } catch (err) {
+      // Ignore lookup error
+    }
+  }
+
+  if (!catalogBook) {
+    let title = input.title || 'Untitled Book';
+    let subtitle = input.subtitle || null;
+    let authors = input.authors || ['Unknown Author'];
+    let coverUrl = input.coverUrl || null;
+    let publisher = input.publisher || null;
+    let publishDate = input.publishDate || null;
+    let pageCount = input.pageCount || 0;
+    let description = input.description || null;
+    let categories = input.categories || [];
+    let language = input.language || null;
+    let workKey = input.workId || null;
+
+    if (cleanIsbn) {
+      try {
+        const googleMeta = await fetchGoogleBookByISBN(cleanIsbn);
+        if (googleMeta) {
+          title = googleMeta.title || title;
+          subtitle = googleMeta.subtitle || subtitle;
+          authors = googleMeta.authors || authors;
+          coverUrl = googleMeta.coverUrl || coverUrl;
+          publisher = googleMeta.publisher || publisher;
+          publishDate = googleMeta.publishDate || publishDate;
+          pageCount = googleMeta.pageCount || pageCount;
+          description = googleMeta.description || description;
+          categories = googleMeta.categories || categories;
+          language = googleMeta.language || language;
+          workKey = googleMeta.workKey || workKey;
+        }
+      } catch (err) {
+        // Ignore Google fetch error
+      }
+
+      if (!workKey || (!workKey.startsWith('OL') && !workKey.includes('/works/'))) {
+        try {
+          const resolvedOlKey = await resolveWorkIdFromIsbn(cleanIsbn);
+          if (resolvedOlKey) {
+            workKey = resolvedOlKey;
+          }
+        } catch (err) {
+          // Ignore OL resolution error
+        }
+      }
+    }
+
+    catalogBook = {
+      id: `book_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+      isbn: cleanIsbn || `NOISBN-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      title,
+      subtitle,
+      authors,
+      coverUrl,
+      publisher,
+      publishDate,
+      pageCount,
+      description,
+      categories,
+      language,
+      workKey,
+      createdAt: new Date().toISOString(),
+    };
+
+    await putCatalogBook(catalogBook);
+  }
+
+  const userBookId = input.id || `ub_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+  const entry: UserLibraryEntry = {
+    id: userBookId,
+    userId,
+    bookId: catalogBook.id,
+    readStatus: input.readStatus || 'unread',
+    rating: input.rating || null,
+    review: input.review || null,
+    seriesId: input.seriesId || null,
+    seriesName: input.seriesName || null,
+    seriesVolumeNumber: input.seriesVolumeNumber || null,
+    dateAdded: input.dateAdded || new Date().toISOString(),
+    dateRead: input.dateRead || null,
   };
 
-  if (isOfflineMode()) {
-    mockDb.books.set(newId, newBook);
-    return newBook;
-  }
+  await db.collection('userLibrary').doc(userBookId).set(entry, { merge: true });
 
-  try {
-    // If Firestore instance is active
-    const docRef = firestoreInstance.collection('books').doc(newId);
-    await docRef.set(newBook);
-    return newBook;
-  } catch (error) {
-    // Fallback to mock state if Firestore write fails
-    mockDb.books.set(newId, newBook);
-    return newBook;
-  }
+  return mapToBook(entry, catalogBook);
 }
 
-export async function getBooks(userId: string): Promise<Book[]> {
-  if (isOfflineMode()) {
-    return Array.from(mockDb.books.values()).filter((b) => b.ownerId === userId);
-  }
-
-  try {
-    const snapshot = await firestoreInstance.collection('books').where('ownerId', '==', userId).get();
-    const books: Book[] = [];
-    snapshot.forEach((doc: any) => books.push(doc.data() as Book));
-    return books;
-  } catch (error) {
-    return Array.from(mockDb.books.values()).filter((b) => b.ownerId === userId);
-  }
+export async function putBook(book: Book): Promise<Book> {
+  return addBookForUser(book.ownerId, book);
 }
 
-export async function getBookById(id: string): Promise<Book | null> {
-  if (isOfflineMode()) {
-    return mockDb.books.get(id) || null;
-  }
-
-  try {
-    const doc = await firestoreInstance.collection('books').doc(id).get();
-    return doc.exists ? (doc.data() as Book) : null;
-  } catch (error) {
-    return mockDb.books.get(id) || null;
-  }
+export async function deleteBook(userId: string, id: string): Promise<boolean> {
+  await db.collection('userLibrary').doc(id).delete();
+  return true;
 }
 
-export async function updateBook(id: string, updates: Partial<Book>): Promise<Book | null> {
-  if (isOfflineMode()) {
-    const existing = mockDb.books.get(id);
-    if (!existing) return null;
-    const updated = { ...existing, ...updates };
-    mockDb.books.set(id, updated);
-    return updated;
-  }
+export async function updateBook(
+  userId: string,
+  id: string,
+  updates: Partial<Book>
+): Promise<Book | null> {
+  const doc = await db.collection('userLibrary').doc(id).get();
+  if (!doc.exists) return null;
+  const entry = doc.data() as UserLibraryEntry;
 
-  try {
-    const docRef = firestoreInstance.collection('books').doc(id);
-    await docRef.update(updates);
-    const updatedDoc = await docRef.get();
-    return updatedDoc.data() as Book;
-  } catch (error) {
-    const existing = mockDb.books.get(id);
-    if (!existing) return null;
-    const updated = { ...existing, ...updates };
-    mockDb.books.set(id, updated);
-    return updated;
-  }
-}
-
-export async function deleteBook(id: string): Promise<boolean> {
-  if (isOfflineMode()) {
-    return mockDb.books.delete(id);
-  }
-
-  try {
-    await firestoreInstance.collection('books').doc(id).delete();
-    mockDb.books.delete(id);
-    return true;
-  } catch (error) {
-    return mockDb.books.delete(id);
-  }
-}
-
-// ----------------------------------------------------
-// SERIES CRUD OPERATIONS
-// ----------------------------------------------------
-
-export async function addSeries(seriesData: Omit<SeriesDetails, 'id'>): Promise<SeriesDetails> {
-  const newId = seriesData.openLibraryWorkId
-    ? `series_${seriesData.openLibraryWorkId}`
-    : `series_${Date.now()}`;
-
-  const newSeries: SeriesDetails = {
-    ...seriesData,
-    id: newId,
+  const updatedEntry: UserLibraryEntry = {
+    ...entry,
+    readStatus: updates.readStatus !== undefined ? updates.readStatus : entry.readStatus,
+    rating: updates.rating !== undefined ? updates.rating : entry.rating,
+    review: updates.review !== undefined ? updates.review : entry.review,
+    seriesId: updates.seriesId !== undefined ? updates.seriesId : entry.seriesId,
+    seriesName: updates.seriesName !== undefined ? updates.seriesName : entry.seriesName,
+    seriesVolumeNumber:
+      updates.seriesVolumeNumber !== undefined
+        ? updates.seriesVolumeNumber
+        : entry.seriesVolumeNumber,
+    dateRead: updates.dateRead !== undefined ? updates.dateRead : entry.dateRead,
   };
 
-  if (isOfflineMode()) {
-    mockDb.series.set(newId, newSeries);
-    return newSeries;
-  }
+  await db.collection('userLibrary').doc(id).set(updatedEntry, { merge: true });
 
-  try {
-    await firestoreInstance.collection('series').doc(newId).set(newSeries);
-    return newSeries;
-  } catch (error) {
-    mockDb.series.set(newId, newSeries);
-    return newSeries;
-  }
+  const catalogBook = await getCatalogBookById(entry.bookId);
+  return catalogBook ? mapToBook(updatedEntry, catalogBook) : null;
 }
 
-export async function getSeries(seriesId: string): Promise<SeriesDetails | null> {
-  if (isOfflineMode()) {
-    return mockDb.series.get(seriesId) || null;
-  }
+// ----------------------------------------------------
+// SERIES COLLECTION OPERATIONS
+// ----------------------------------------------------
 
-  try {
-    const doc = await firestoreInstance.collection('series').doc(seriesId).get();
-    return doc.exists ? (doc.data() as SeriesDetails) : null;
-  } catch (error) {
-    return mockDb.series.get(seriesId) || null;
-  }
+export async function getSeriesById(id: string): Promise<SeriesDetails | null> {
+  const doc = await db.collection('series').doc(id).get();
+  return doc.exists ? (doc.data() as SeriesDetails) : null;
 }
 
 export async function getAllSeries(): Promise<SeriesDetails[]> {
-  if (isOfflineMode()) {
-    return Array.from(mockDb.series.values());
-  }
-
-  try {
-    const snapshot = await firestoreInstance.collection('series').get();
-    const seriesList: SeriesDetails[] = [];
-    snapshot.forEach((doc: any) => seriesList.push(doc.data() as SeriesDetails));
-    return seriesList;
-  } catch (error) {
-    return Array.from(mockDb.series.values());
-  }
+  const snapshot = await db.collection('series').get();
+  return snapshot.docs.map((doc) => doc.data() as SeriesDetails);
 }
 
-export async function updateSeries(
-  seriesId: string,
-  updates: Partial<SeriesDetails>
-): Promise<SeriesDetails | null> {
-  if (isOfflineMode()) {
-    const existing = mockDb.series.get(seriesId);
-    if (!existing) return null;
-    const updated = { ...existing, ...updates };
-    mockDb.series.set(seriesId, updated);
-    return updated;
-  }
-
-  try {
-    const docRef = firestoreInstance.collection('series').doc(seriesId);
-    await docRef.update(updates);
-    const doc = await docRef.get();
-    return doc.data() as SeriesDetails;
-  } catch (error) {
-    const existing = mockDb.series.get(seriesId);
-    if (!existing) return null;
-    const updated = { ...existing, ...updates };
-    mockDb.series.set(seriesId, updated);
-    return updated;
-  }
+export async function putSeries(series: SeriesDetails): Promise<SeriesDetails> {
+  await db.collection('series').doc(series.id).set(series, { merge: true });
+  return series;
 }
 
 // ----------------------------------------------------
-// USER SERIES STATUS CRUD OPERATIONS
+// USER SERIES STATUS COLLECTION OPERATIONS
 // ----------------------------------------------------
 
 export async function getUserSeriesStatus(
   userId: string,
   seriesId: string
 ): Promise<UserSeriesStatus | null> {
-  const key = `${userId}_${seriesId}`;
-  if (isOfflineMode()) {
-    return mockDb.userSeriesStatus.get(key) || null;
-  }
-
-  try {
-    const doc = await firestoreInstance.collection('userSeriesStatus').doc(key).get();
-    return doc.exists ? (doc.data() as UserSeriesStatus) : null;
-  } catch (error) {
-    return mockDb.userSeriesStatus.get(key) || null;
-  }
+  const docId = `${userId}_${seriesId}`;
+  const doc = await db.collection('userSeriesStatus').doc(docId).get();
+  return doc.exists ? (doc.data() as UserSeriesStatus) : null;
 }
 
-export async function updateUserSeriesStatus(
-  userId: string,
-  seriesId: string,
-  updates: Partial<UserSeriesStatus>
-): Promise<UserSeriesStatus> {
-  const key = `${userId}_${seriesId}`;
-  const existing = (await getUserSeriesStatus(userId, seriesId)) || {
-    id: key,
-    userId,
-    seriesId,
-    isCompleted: false,
-    ignoredVolumes: [],
-  };
-
-  const updatedStatus: UserSeriesStatus = {
-    ...existing,
-    ...updates,
-  };
-
-  if (isOfflineMode()) {
-    mockDb.userSeriesStatus.set(key, updatedStatus);
-    return updatedStatus;
-  }
-
-  try {
-    await firestoreInstance.collection('userSeriesStatus').doc(key).set(updatedStatus, { merge: true });
-    return updatedStatus;
-  } catch (error) {
-    mockDb.userSeriesStatus.set(key, updatedStatus);
-    return updatedStatus;
-  }
+export async function getAllUserSeriesStatuses(userId: string): Promise<UserSeriesStatus[]> {
+  const snapshot = await db.collection('userSeriesStatus').where('userId', '==', userId).get();
+  return snapshot.docs.map((doc) => doc.data() as UserSeriesStatus);
 }
 
-export async function getUserAllSeriesStatus(userId: string): Promise<UserSeriesStatus[]> {
-  if (isOfflineMode()) {
-    return Array.from(mockDb.userSeriesStatus.values()).filter((st) => st.userId === userId);
-  }
-
-  try {
-    const snapshot = await firestoreInstance
-      .collection('userSeriesStatus')
-      .where('userId', '==', userId)
-      .get();
-    const statusList: UserSeriesStatus[] = [];
-    snapshot.forEach((doc: any) => statusList.push(doc.data() as UserSeriesStatus));
-    return statusList;
-  } catch (error) {
-    return Array.from(mockDb.userSeriesStatus.values()).filter((st) => st.userId === userId);
-  }
+export async function putUserSeriesStatus(status: UserSeriesStatus): Promise<UserSeriesStatus> {
+  const docId = `${status.userId}_${status.seriesId}`;
+  await db.collection('userSeriesStatus').doc(docId).set(status, { merge: true });
+  return status;
 }

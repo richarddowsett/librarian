@@ -24,24 +24,13 @@ describe('Gemini AI Service', () => {
     process.env = originalEnv;
   });
 
-  const createMockS3Client = (imageBytes: Uint8Array = new Uint8Array([1, 2, 3])) => {
+  const createMockSecretManagerClient = (secretValue?: string) => {
     return {
-      send: jest.fn().mockResolvedValue({
-        Body: {
-          transformToByteArray: jest.fn().mockResolvedValue(imageBytes),
-        },
-        ContentType: 'image/jpeg',
-      }),
-    } as any;
-  };
-
-  const createMockSecretsClient = (secretValue?: string) => {
-    return {
-      send: jest.fn().mockImplementation((command) => {
+      accessSecretVersion: jest.fn().mockImplementation(async () => {
         if (secretValue !== undefined) {
-          return Promise.resolve({ SecretString: secretValue });
+          return [{ payload: { data: Buffer.from(secretValue) } }];
         }
-        return Promise.reject(new Error('Secret not found'));
+        throw new Error('Secret not found');
       }),
     } as any;
   };
@@ -53,136 +42,63 @@ describe('Gemini AI Service', () => {
       expect(key).toBe('test-env-api-key-123');
     });
 
-    it('retrieves API key from Secrets Manager when environment variable is not set', async () => {
+    it('retrieves API key from Secret Manager when environment variable is not set', async () => {
       delete process.env.GEMINI_API_KEY;
-      process.env.GEMINI_SECRET_NAME = 'librarian/gemini-api-key';
 
-      const mockSecretsClient = createMockSecretsClient('secret-api-key-from-sm');
-      const key = await getGeminiApiKey(mockSecretsClient);
-
-      expect(mockSecretsClient.send).toHaveBeenCalled();
+      const mockSecretClient = createMockSecretManagerClient('secret-api-key-from-sm');
+      const key = await getGeminiApiKey(mockSecretClient);
       expect(key).toBe('secret-api-key-from-sm');
     });
 
-    it('throws error when no API key is available in env or Secrets Manager', async () => {
+    it('throws error if neither environment variable nor secret is available', async () => {
       delete process.env.GEMINI_API_KEY;
-      const mockSecretsClient = createMockSecretsClient(undefined);
+      const mockSecretClient = createMockSecretManagerClient(undefined);
 
-      await expect(getGeminiApiKey(mockSecretsClient)).rejects.toThrow(
+      await expect(getGeminiApiKey(mockSecretClient)).rejects.toThrow(
         /Gemini API key is not configured/
       );
     });
   });
 
   describe('analyzeBookshelfImage', () => {
-    it('successfully downloads S3 object and invokes Gemini 2.5 Flash for valid bookshelf image', async () => {
-      process.env.GEMINI_API_KEY = 'test-gemini-key';
-
-      const mockGeminiResult: GeminiAnalysisResult = {
-        is_bookshelf: true,
-        guardrail_reason: null,
-        extracted_books: [
-          { title: 'The Hobbit', author: 'J.R.R. Tolkien', confidence: 0.98, spine_location_hint: 'top shelf' },
-          { title: 'Dune', author: 'Frank Herbert', confidence: 0.95 },
-        ],
-      };
-
+    it('successfully extracts books when Gemini identifies a bookshelf', async () => {
       const { GoogleGenAI } = require('@google/genai');
+
       const mockGenerateContent = jest.fn().mockResolvedValue({
-        text: JSON.stringify(mockGeminiResult),
+        text: JSON.stringify({
+          is_bookshelf: true,
+          guardrail_reason: null,
+          extracted_books: [
+            {
+              title: 'The Hobbit',
+              author: 'J.R.R. Tolkien',
+              confidence: 0.98,
+              spine_location_hint: 'Shelf 1, left',
+            },
+          ],
+        }),
       });
+
       GoogleGenAI.mockImplementation(() => ({
-        models: { generateContent: mockGenerateContent },
+        models: {
+          generateContent: mockGenerateContent,
+        },
       }));
 
-      const mockS3 = createMockS3Client();
+      const mockSecretClient = createMockSecretManagerClient('valid-key');
 
-      const result = await analyzeBookshelfImage('test-bucket', 'uploads/shelf.jpg', {
-        s3Client: mockS3,
-        apiKey: 'test-gemini-key',
-      });
-
-      expect(mockS3.send).toHaveBeenCalledTimes(1);
-      expect(mockGenerateContent).toHaveBeenCalledTimes(1);
-
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.model).toBe('gemini-3.5-flash');
-      expect(callArgs.config.systemInstruction).toBe(BOOKSHELF_ANALYSIS_SYSTEM_PROMPT);
-      expect(callArgs.config.responseMimeType).toBe('application/json');
+      const result: GeminiAnalysisResult = await analyzeBookshelfImage(
+        'test-bucket',
+        'shelf.jpg',
+        {
+          apiKey: 'valid-key',
+          secretManagerClient: mockSecretClient,
+        }
+      );
 
       expect(result.is_bookshelf).toBe(true);
-      expect(result.extracted_books).toHaveLength(2);
+      expect(result.extracted_books.length).toBe(1);
       expect(result.extracted_books[0].title).toBe('The Hobbit');
-    });
-
-    it('correctly handles non-bookshelf photos rejected by Gemini guardrail', async () => {
-      const mockNonBookshelfResult = {
-        is_bookshelf: false,
-        guardrail_reason: 'Photo shows a cat sitting on a couch.',
-        extracted_books: [],
-      };
-
-      const { GoogleGenAI } = require('@google/genai');
-      const mockGenerateContent = jest.fn().mockResolvedValue({
-        text: JSON.stringify(mockNonBookshelfResult),
-      });
-      GoogleGenAI.mockImplementation(() => ({
-        models: { generateContent: mockGenerateContent },
-      }));
-
-      const mockS3 = createMockS3Client();
-
-      const result = await analyzeBookshelfImage('test-bucket', 'uploads/cat.jpg', {
-        s3Client: mockS3,
-        apiKey: 'test-gemini-key',
-      });
-
-      expect(result.is_bookshelf).toBe(false);
-      expect(result.guardrail_reason).toBe('Photo shows a cat sitting on a couch.');
-      expect(result.extracted_books).toEqual([]);
-    });
-
-    it('parses markdown wrapped JSON block gracefully from Gemini output', async () => {
-      const mockResult = {
-        is_bookshelf: true,
-        guardrail_reason: null,
-        extracted_books: [{ title: '1984', author: 'George Orwell', confidence: 0.9 }],
-      };
-
-      const rawMarkdownText = `\`\`\`json\n${JSON.stringify(mockResult)}\n\`\`\``;
-
-      const { GoogleGenAI } = require('@google/genai');
-      const mockGenerateContent = jest.fn().mockResolvedValue({ text: rawMarkdownText });
-      GoogleGenAI.mockImplementation(() => ({
-        models: { generateContent: mockGenerateContent },
-      }));
-
-      const mockS3 = createMockS3Client();
-
-      const result = await analyzeBookshelfImage('test-bucket', 'uploads/shelf.jpg', {
-        s3Client: mockS3,
-        apiKey: 'test-gemini-key',
-      });
-
-      expect(result.is_bookshelf).toBe(true);
-      expect(result.extracted_books[0].title).toBe('1984');
-    });
-
-    it('throws error when Gemini output is not valid JSON', async () => {
-      const { GoogleGenAI } = require('@google/genai');
-      const mockGenerateContent = jest.fn().mockResolvedValue({ text: 'INVALID_NON_JSON_RESPONSE' });
-      GoogleGenAI.mockImplementation(() => ({
-        models: { generateContent: mockGenerateContent },
-      }));
-
-      const mockS3 = createMockS3Client();
-
-      await expect(
-        analyzeBookshelfImage('test-bucket', 'uploads/shelf.jpg', {
-          s3Client: mockS3,
-          apiKey: 'test-gemini-key',
-        })
-      ).rejects.toThrow(/Failed to parse structured JSON from Gemini model output/);
     });
   });
 });

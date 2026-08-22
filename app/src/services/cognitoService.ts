@@ -1,6 +1,9 @@
-const COGNITO_REGION = process.env.EXPO_PUBLIC_AWS_REGION || 'eu-central-1';
-const COGNITO_CLIENT_ID = process.env.EXPO_PUBLIC_COGNITO_CLIENT_ID || '1qhr6sp98vcpj6e7qbtbcmjcjr';
-const COGNITO_ENDPOINT = `https://cognito-idp.${COGNITO_REGION}.amazonaws.com/`;
+import {
+  signUpWithFirebase,
+  signInWithFirebase,
+  signOutFirebase,
+  AuthSessionUser,
+} from './firebaseAuthService';
 
 export interface CognitoAuthSession {
   idToken: string;
@@ -13,103 +16,25 @@ export interface CognitoAuthSession {
   };
 }
 
-async function callCognitoApi(target: string, payload: Record<string, any>) {
-  const response = await fetch(COGNITO_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-amz-json-1.1',
-      'X-Amz-Target': `AWSCognitoIdentityProviderService.${target}`,
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    const message = data.__type
-      ? `${data.__type.split('#')[1] || data.__type}: ${data.message || 'Cognito authentication request failed.'}`
-      : data.message || 'Cognito authentication error';
-    throw new Error(message);
-  }
-
-  return data;
+export async function signUpWithCognito(email: string, password: string, name?: string) {
+  const result = await signUpWithFirebase(email, password, name);
+  return { userSub: result.user.uid };
 }
 
-export async function signUpWithCognito(email: string, password: string, name?: string): Promise<{ userSub: string; codeDeliveryDetails?: any }> {
-  const userAttributes: Array<{ Name: string; Value: string }> = [
-    { Name: 'email', Value: email },
-  ];
-
-  if (name && name.trim()) {
-    userAttributes.push({ Name: 'name', Value: name.trim() });
-  }
-
-  const response = await callCognitoApi('SignUp', {
-    ClientId: COGNITO_CLIENT_ID,
-    Username: email,
-    Password: password,
-    UserAttributes: userAttributes,
-  });
-
-  return {
-    userSub: response.UserSub,
-    codeDeliveryDetails: response.CodeDeliveryDetails,
-  };
-}
-
-export async function confirmCognitoSignUp(email: string, confirmationCode: string): Promise<boolean> {
-  await callCognitoApi('ConfirmSignUp', {
-    ClientId: COGNITO_CLIENT_ID,
-    Username: email,
-    ConfirmationCode: confirmationCode,
-  });
-
+export async function confirmCognitoSignUp(email: string, confirmationCode: string) {
   return true;
 }
 
-export async function resendCognitoConfirmationCode(email: string): Promise<boolean> {
-  await callCognitoApi('ResendConfirmationCode', {
-    ClientId: COGNITO_CLIENT_ID,
-    Username: email,
-  });
-
+export async function resendCognitoConfirmationCode(email: string) {
   return true;
 }
 
 export async function signInWithCognito(email: string, password: string): Promise<CognitoAuthSession> {
-  const response = await callCognitoApi('InitiateAuth', {
-    AuthFlow: 'USER_PASSWORD_AUTH',
-    ClientId: COGNITO_CLIENT_ID,
-    AuthParameters: {
-      USERNAME: email,
-      PASSWORD: password,
-    },
-  });
-
-  const authResult = response.AuthenticationResult;
-  if (!authResult) {
-    throw new Error('Authentication failed - no result returned.');
-  }
-
-  const userDetails = await callCognitoApi('GetUser', {
-    AccessToken: authResult.AccessToken,
-  });
-
-  const subAttr = userDetails.UserAttributes?.find((attr: { Name: string; Value: string }) => attr.Name === 'sub');
-  const emailAttr = userDetails.UserAttributes?.find((attr: { Name: string; Value: string }) => attr.Name === 'email');
-  const nameAttr = userDetails.UserAttributes?.find((attr: { Name: string; Value: string }) => attr.Name === 'name');
-
-  const resolvedEmail = emailAttr?.Value || email;
-  const resolvedDisplayName = nameAttr?.Value || resolvedEmail.split('@')[0];
-
+  const result = await signInWithFirebase(email, password);
   return {
-    idToken: authResult.IdToken,
-    accessToken: authResult.AccessToken,
-    refreshToken: authResult.RefreshToken,
-    user: {
-      uid: subAttr?.Value || userDetails.Username || email,
-      email: resolvedEmail,
-      displayName: resolvedDisplayName,
-    },
+    idToken: result.idToken,
+    accessToken: result.idToken,
+    refreshToken: result.idToken,
+    user: result.user,
   };
 }

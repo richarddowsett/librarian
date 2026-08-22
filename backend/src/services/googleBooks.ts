@@ -1,10 +1,10 @@
 import { SanitizedBookMetadata } from '../types';
-import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
+import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 
 let cachedApiKey: string | null = null;
 
 /**
- * Retrieves the Google Books API key securely from environment variable or AWS Secrets Manager.
+ * Retrieves the Google Books API key securely from environment variable or Google Secret Manager.
  */
 export async function getGoogleBooksApiKey(): Promise<string> {
   if (cachedApiKey) return cachedApiKey;
@@ -17,22 +17,17 @@ export async function getGoogleBooksApiKey(): Promise<string> {
   }
 
   try {
-    const region = process.env.AWS_REGION || 'eu-central-1';
-    const client = new SecretsManagerClient({ region });
-    const command = new GetSecretValueCommand({ SecretId: 'google-books-api-key' });
-    const response = await client.send(command);
+    const client = new SecretManagerServiceClient();
+    const projectId = process.env.GCP_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || 'shelfd-506308';
+    const name = `projects/${projectId}/secrets/google-books-api-key/versions/latest`;
+    const [version] = await client.accessSecretVersion({ name });
 
-    if (response.SecretString) {
-      try {
-        const parsed = JSON.parse(response.SecretString);
-        cachedApiKey = parsed.GOOGLE_BOOKS_API_KEY || parsed.api_key || response.SecretString;
-      } catch {
-        cachedApiKey = response.SecretString.trim();
-      }
-      return cachedApiKey || '';
+    if (version.payload?.data) {
+      cachedApiKey = version.payload.data.toString().trim();
+      return cachedApiKey;
     }
-  } catch (err) {
-    console.warn('SecretsManager lookup for google-books-api-key skipped/unresolved:', err);
+  } catch (err: any) {
+    console.warn('Could not retrieve secret from Secret Manager:', err.message);
   }
 
   return '';
