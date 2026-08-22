@@ -45,7 +45,7 @@ export async function generatePresignedUploadUrl(
   }
 
   const s3 = customS3Client || getS3Client();
-  const bucket = process.env.BOOKSHELF_BUCKET_NAME || process.env.BOOKSHELF_UPLOAD_BUCKET || 'librarian-dev-bookshelf-uploads';
+  const bucket = process.env.BOOKSHELF_BUCKET_NAME || process.env.BOOKSHELF_UPLOAD_BUCKET || 'shelfd-bookshelf-uploads';
 
   let ext = 'jpg';
   if (normalizedType === 'image/png') ext = 'png';
@@ -119,7 +119,7 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<APIGateway
         });
       }
 
-      const bucket = process.env.BOOKSHELF_BUCKET_NAME || process.env.BOOKSHELF_UPLOAD_BUCKET || 'librarian-dev-bookshelf-uploads';
+      const bucket = process.env.BOOKSHELF_BUCKET_NAME || process.env.BOOKSHELF_UPLOAD_BUCKET || 'shelfd-bookshelf-uploads';
 
       // Call Gemini Vision AI Service
       const geminiResult = await analyzeBookshelfImage(bucket, s3Key.trim());

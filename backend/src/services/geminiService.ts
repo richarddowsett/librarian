@@ -45,7 +45,7 @@ export async function getGeminiApiKey(secretsClient?: SecretsManagerClient): Pro
     return cachedApiKey;
   }
 
-  const secretName = process.env.GEMINI_SECRET_NAME || 'librarian/gemini-api-key';
+  const secretName = process.env.GEMINI_SECRET_NAME || 'shelfd/gemini-api-key';
   const sm = secretsClient || getSecretsClient();
 
   try {

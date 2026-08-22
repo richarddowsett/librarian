@@ -14,12 +14,12 @@ import { fetchBookByISBN as fetchOlBookByISBN, resolveWorkIdFromIsbn } from './o
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
 
-const USERS_TABLE = process.env.USERS_TABLE_NAME || 'librarian-dev-users';
-const BOOKS_TABLE = process.env.BOOKS_TABLE_NAME || 'librarian-dev-books';
-const USER_LIBRARY_TABLE = process.env.USER_LIBRARY_TABLE_NAME || 'librarian-dev-user-library';
-const SERIES_TABLE = process.env.SERIES_TABLE_NAME || 'librarian-dev-series';
+const USERS_TABLE = process.env.USERS_TABLE_NAME || 'shelfd-users';
+const BOOKS_TABLE = process.env.BOOKS_TABLE_NAME || 'shelfd-books';
+const USER_LIBRARY_TABLE = process.env.USER_LIBRARY_TABLE_NAME || 'shelfd-user-library';
+const SERIES_TABLE = process.env.SERIES_TABLE_NAME || 'shelfd-series';
 const USER_SERIES_STATUS_TABLE =
-  process.env.USER_SERIES_STATUS_TABLE_NAME || 'librarian-dev-user-series-status';
+  process.env.USER_SERIES_STATUS_TABLE_NAME || 'shelfd-user-series-status';
 
 function mapToBook(entry: UserLibraryEntry, catalogBook: CatalogBook): Book {
   if (!catalogBook.isbn) {

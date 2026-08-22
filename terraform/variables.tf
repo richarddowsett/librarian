@@ -9,20 +9,15 @@ variable "aws_region" {
 }
 
 variable "environment" {
-  description = "Deployment environment name (e.g., dev, staging, prod)."
+  description = "Deployment environment name (e.g. dev, staging, prod, or empty string for multi-account isolation)."
   type        = string
-  default     = "dev"
-
-  validation {
-    condition     = contains(["dev", "staging", "prod"], var.environment)
-    error_message = "Environment must be dev, staging, or prod."
-  }
+  default     = ""
 }
 
 variable "project_name" {
   description = "Name of the project."
   type        = string
-  default     = "librarian"
+  default     = "shelfd"
 }
 
 # ------------------------------------------------------------------------------

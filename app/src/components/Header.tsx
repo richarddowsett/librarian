@@ -42,7 +42,7 @@ export const Header: React.FC = () => {
         </View>
         <View style={{ justifyContent: 'center' }}>
           <Text style={{ color: '#f8fafc', fontSize: 18, fontWeight: '800', letterSpacing: 0.5, includeFontPadding: false }}>
-            LIBRARIAN
+            SHELFD
           </Text>
           <Text style={{ color: '#38bdf8', fontSize: 10, fontWeight: '700', letterSpacing: 1, includeFontPadding: false }}>
             BOOK CATALOGUE

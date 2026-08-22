@@ -1,8 +1,8 @@
 {
-  "name": "librarian",
+  "name": "shelfd",
   "version": "0.1.0",
   "private": true,
-  "description": "Librarian monorepo root package",
+  "description": "Shelfd monorepo root package",
   "scripts": {
     "test:app": "npm --prefix app run test",
     "test": "npm run test:app",
@@ -10,6 +10,6 @@
     "deploy": "npm run test:app && npm run build:backend && cd terraform && terraform init && terraform apply -auto-approve",
     "deploy:backend": "npm run build:backend && cd terraform && terraform init && terraform apply -auto-approve",
     "build:app": "npm --prefix app run build:web",
-    "deploy:app": "npm run build:app && aws s3 sync app/dist s3://$(cd terraform && terraform output -raw frontend_s3_bucket 2>/dev/null || echo 'librarian-dev-frontend-bucket') --delete"
+    "deploy:app": "npm run build:app && aws s3 sync app/dist s3://$(cd terraform && terraform output -raw frontend_s3_bucket 2>/dev/null || echo 'shelfd-frontend-bucket') --delete"
   }
 }

@@ -147,7 +147,7 @@ export default function LoginScreen() {
             <Ionicons name="library" size={34} color="#ffffff" />
           </View>
           <Text style={{ color: '#f8fafc', fontSize: 26, fontWeight: '800', letterSpacing: 0.5 }}>
-            LIBRARIAN
+            SHELFD
           </Text>
           <Text style={{ color: '#94a3b8', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
             Your personal library organizer & bookshelf AI companion
@@ -326,7 +326,7 @@ export default function LoginScreen() {
                 <>
                   <Ionicons name="log-in-outline" size={20} color="#ffffff" />
                   <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '700', includeFontPadding: false }}>
-                    Sign In to Librarian
+                    Sign In to Shelfd
                   </Text>
                 </>
               )}

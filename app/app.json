@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Librarian",
-    "slug": "librarian",
+    "name": "Shelfd",
+    "slug": "shelfd",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "scheme": "librarian",
+    "scheme": "shelfd",
     "icon": "./assets/favicon.png",
     "web": {
       "bundler": "metro",
