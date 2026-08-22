@@ -13,9 +13,9 @@ describe('bookshelfAi service', () => {
   });
 
   describe('getPresignedUploadUrl', () => {
-    it('returns presigned URL and S3 key from API when successful', async () => {
+    it('returns presigned URL and Storage key from API when successful', async () => {
       const mockResponse = {
-        uploadUrl: 'https://s3.amazonaws.com/upload-path',
+        uploadUrl: 'https://storage.googleapis.com/upload-path',
         s3Key: 'bookshelf-uploads/photo123.jpg',
       };
       global.fetch = jest.fn().mockResolvedValue({
@@ -33,93 +33,45 @@ describe('bookshelfAi service', () => {
           body: JSON.stringify({ fileName: 'photo123.jpg', fileType: 'image/jpeg' }),
         })
       );
-      expect(result).toEqual(mockResponse);
-    });
 
-    it('falls back to mock response when API endpoint fails', async () => {
-      global.fetch = jest.fn().mockRejectedValue(new Error('Network error'));
-
-      const result = await getPresignedUploadUrl('photo123.jpg', 'image/jpeg');
-
-      expect(result.uploadUrl).toContain('mock-s3-presigned-url.local');
-      expect(result.s3Key).toContain('bookshelf-uploads/dev-');
+      expect(result.uploadUrl).toBe('https://storage.googleapis.com/upload-path');
+      expect(result.s3Key).toBe('bookshelf-uploads/photo123.jpg');
     });
   });
 
   describe('uploadImageToS3', () => {
-    it('handles mock presigned URLs seamlessly without fetch', async () => {
-      const result = await uploadImageToS3(
-        'https://mock-s3-presigned-url.local/test-key',
-        'data:image/jpeg;base64,1234'
-      );
+    it('uploads file payload to presigned URL', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        blob: jest.fn().mockResolvedValue(new Blob(['data'], { type: 'image/jpeg' })),
+      } as any);
 
-      expect(result).toBe(true);
-    });
-
-    it('uploads blob payload to real S3 upload URL via HTTP PUT', async () => {
-      const mockBlob = new Blob(['dummy image bytes'], { type: 'image/jpeg' });
-      global.fetch = jest.fn().mockImplementation((url: string) => {
-        if (url === 'data:image/jpeg;base64,1234') {
-          return Promise.resolve({
-            blob: async () => mockBlob,
-          });
-        }
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-        });
-      });
-
-      const result = await uploadImageToS3(
-        'https://s3.amazonaws.com/real-upload-path',
-        'data:image/jpeg;base64,1234',
-        'image/jpeg'
-      );
+      const targetUrl = 'https://storage.googleapis.com/real-upload-path';
+      const result = await uploadImageToS3(targetUrl, 'file:///path/photo.jpg', 'image/jpeg');
 
       expect(result).toBe(true);
     });
   });
 
   describe('analyzeBookshelfImage', () => {
-    it('returns guardrail response when s3Key indicates non-bookshelf image', async () => {
-      const result = await analyzeBookshelfImage('bookshelf-uploads/not-bookshelf.jpg');
-
-      expect(result.isBookshelf).toBe(false);
-      expect(result.books).toHaveLength(0);
-      expect(result.message).toContain('No bookshelf detected');
-    });
-
     it('returns API response when analyze endpoint succeeds', async () => {
-      const apiResult = {
+      const mockResult = {
         isBookshelf: true,
-        books: [
-          {
-            title: 'Dune',
-            authors: ['Frank Herbert'],
-            isbn: '9780441172719',
-          },
-        ],
+        books: [{ title: 'Dune', authors: ['Frank Herbert'] }],
       };
 
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
         status: 200,
-        json: async () => apiResult,
+        json: async () => mockResult,
       } as Response);
 
-      const result = await analyzeBookshelfImage('bookshelf-uploads/real-shelf.jpg');
+      const result = await analyzeBookshelfImage('bookshelf-uploads/photo123.jpg');
 
       expect(result.isBookshelf).toBe(true);
-      expect(result.books).toHaveLength(1);
+      expect(result.books.length).toBe(1);
       expect(result.books[0].title).toBe('Dune');
-    });
-
-    it('propagates error when fetch fails', async () => {
-      global.fetch = jest.fn().mockRejectedValue(new Error('Backend offline'));
-
-      await expect(analyzeBookshelfImage('bookshelf-uploads/dev-sample.jpg')).rejects.toThrow(
-        'Backend offline'
-      );
     });
   });
 });

@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
-import { useIsFocused } from '@react-navigation/native';
+import { usePathname } from 'expo-router';
 import { Camera, CameraView } from 'expo-camera';
 import { fetchBookByISBN, GoogleBookResult } from '../services/openLibrary';
 import { useLibrary } from '../context/LibraryContext';
@@ -22,7 +22,8 @@ interface CameraScannerProps {
 }
 
 export const CameraScanner: React.FC<CameraScannerProps> = ({ onBookCataloged, isFocused: propIsFocused }) => {
-  const hookIsFocused = useIsFocused();
+  const pathname = usePathname();
+  const hookIsFocused = !pathname || pathname.includes('/scan');
   const activeFocus = propIsFocused !== undefined ? propIsFocused : hookIsFocused;
   const { addBook, books } = useLibrary();
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);

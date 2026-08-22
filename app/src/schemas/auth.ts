@@ -6,7 +6,7 @@ export const emailAuthSchema = z.object({
 
 export type EmailAuthInput = z.infer<typeof emailAuthSchema>;
 
-export const cognitoSignUpSchema = z.object({
+export const signUpSchema = z.object({
   name: z.string().trim().min(2, "Please enter your name (at least 2 characters)"),
   email: z.string().trim().email("Please enter a valid email address"),
   password: z.string().min(8, "Password must be at least 8 characters long")
@@ -14,14 +14,20 @@ export const cognitoSignUpSchema = z.object({
     .regex(/[0-9]/, "Password must contain at least one number"),
 });
 
-export type CognitoSignUpInput = z.infer<typeof cognitoSignUpSchema>;
+export type SignUpInput = z.infer<typeof signUpSchema>;
 
-export const cognitoConfirmSchema = z.object({
+export const confirmSchema = z.object({
   email: z.string().trim().email("Please enter a valid email address"),
   code: z.string().trim().min(6, "Verification code must be 6 digits"),
 });
 
-export type CognitoConfirmInput = z.infer<typeof cognitoConfirmSchema>;
+export type ConfirmInput = z.infer<typeof confirmSchema>;
+
+// Backward compatibility aliases
+export const cognitoSignUpSchema = signUpSchema;
+export type CognitoSignUpInput = SignUpInput;
+export const cognitoConfirmSchema = confirmSchema;
+export type CognitoConfirmInput = ConfirmInput;
 
 export const userProfileSchema = z.object({
   uid: z.string().min(1),
@@ -34,4 +40,3 @@ export const userProfileSchema = z.object({
 });
 
 export type UserProfile = z.infer<typeof userProfileSchema>;
-

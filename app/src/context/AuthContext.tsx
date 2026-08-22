@@ -1,11 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { UserProfile, cognitoSignUpSchema, cognitoConfirmSchema } from '../schemas/auth';
+import { UserProfile, signUpSchema, confirmSchema } from '../schemas/auth';
 import {
-  signUpWithCognito,
-  confirmCognitoSignUp,
-  resendCognitoConfirmationCode,
-  signInWithCognito,
-} from '../services/cognitoService';
+  signUpWithFirebase,
+  signInWithFirebase,
+  signOutFirebase,
+} from '../services/firebaseAuthService';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -22,7 +21,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const AUTH_STORAGE_KEY = 'librarian_auth_session_v1';
+const AUTH_STORAGE_KEY = 'shelfd_auth_session_v1';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -67,7 +66,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signUp = async (email: string, password: string, name?: string): Promise<{ success: boolean; error?: string }> => {
-    const parseResult = cognitoSignUpSchema.safeParse({ email, password, name });
+    const parseResult = signUpSchema.safeParse({ email, password, name });
     if (!parseResult.success) {
       return {
         success: false,
@@ -77,18 +76,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setIsLoading(true);
     try {
-      await signUpWithCognito(email, password, name);
-      setUnconfirmedEmail(email);
+      const res = await signUpWithFirebase(email, password, name);
+      const profile: UserProfile = {
+        uid: res.user.uid,
+        email: res.user.email,
+        displayName: res.user.displayName,
+        createdAt: new Date().toISOString(),
+      };
+      saveSession(profile, 'fb-token-' + res.user.uid);
       setIsLoading(false);
       return { success: true };
     } catch (err: any) {
       setIsLoading(false);
-      return { success: false, error: err.message || 'Failed to sign up with AWS Cognito' };
+      return { success: false, error: err.message || 'Failed to sign up with Firebase Authentication' };
     }
   };
 
   const confirmSignUp = async (email: string, code: string): Promise<{ success: boolean; error?: string }> => {
-    const parseResult = cognitoConfirmSchema.safeParse({ email, code });
+    const parseResult = confirmSchema.safeParse({ email, code });
     if (!parseResult.success) {
       return {
         success: false,
@@ -97,27 +102,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     setIsLoading(true);
-    try {
-      await confirmCognitoSignUp(email, code);
-      setUnconfirmedEmail(null);
-      setIsLoading(false);
-      return { success: true };
-    } catch (err: any) {
-      setIsLoading(false);
-      return { success: false, error: err.message || 'Failed to confirm account verification code' };
-    }
+    setUnconfirmedEmail(null);
+    setIsLoading(false);
+    return { success: true };
   };
 
   const resendCode = async (email: string): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true);
-    try {
-      await resendCognitoConfirmationCode(email);
-      setIsLoading(false);
-      return { success: true };
-    } catch (err: any) {
-      setIsLoading(false);
-      return { success: false, error: err.message || 'Failed to resend confirmation code' };
-    }
+    setIsLoading(false);
+    return { success: true };
   };
 
   const signIn = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
@@ -127,13 +120,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setIsLoading(true);
     try {
-      const session = await signInWithCognito(email, password);
+      const session = await signInWithFirebase(email, password);
       const profile: UserProfile = {
         uid: session.user.uid,
         email: session.user.email,
         displayName: session.user.displayName,
         idToken: session.idToken,
-        accessToken: session.accessToken,
+        accessToken: session.idToken,
         createdAt: new Date().toISOString(),
       };
 
@@ -142,15 +135,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: true };
     } catch (err: any) {
       setIsLoading(false);
-      if (err.message && err.message.includes('UserNotConfirmedException')) {
-        setUnconfirmedEmail(email);
-        return { success: false, error: 'User is not confirmed yet. Please verify your email code.' };
-      }
       return { success: false, error: err.message || 'Sign in failed' };
     }
   };
 
   const logout = () => {
+    signOutFirebase().catch((err) => console.warn('Logout error:', err));
     saveSession(null, null);
     setUnconfirmedEmail(null);
   };

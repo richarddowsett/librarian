@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { CameraScanner } from '../../src/components/CameraScanner';
 import { BookshelfScanner } from '../../src/components/BookshelfScanner';
-import { useRouter } from 'expo-router';
-import { useIsFocused } from '@react-navigation/native';
+import { useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function ScanScreen() {
   const router = useRouter();
-  const isFocused = useIsFocused();
+  const pathname = usePathname();
+  const isFocused = pathname.includes('/scan');
   const [scanMode, setScanMode] = useState<'barcode' | 'bookshelf'>('barcode');
 
   return (
