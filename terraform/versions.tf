@@ -6,4 +6,9 @@ terraform {
       version = "~> 5.0"
     }
   }
+
+  backend "gcs" {
+    bucket = "shelfd-506308-tfstate"
+    prefix = "terraform/state"
+  }
 }
