@@ -65,4 +65,5 @@ jobs:
             --region europe-west1 \
             --project shelfd-506308 \
             --allow-unauthenticated \
+            --clear-base-image \
             --set-env-vars GCP_PROJECT_ID=shelfd-506308,BOOKSHELF_BUCKET_NAME=shelfd-506308-bookshelf-uploads
