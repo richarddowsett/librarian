@@ -6,7 +6,7 @@
   "scripts": {
     "test": "jest",
     "test:coverage": "jest --coverage",
-    "build": "tsc && node build.js",
+    "build": "npx tsc && node build.js",
     "gcp-build": "npm run build",
     "start": "node dist/server.js"
   },
