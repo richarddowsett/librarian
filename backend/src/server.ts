@@ -1,12 +1,20 @@
 import http from 'http';
-import { handler as booksHandler } from './handlers/booksHandler';
-import { handler as seriesHandler } from './handlers/seriesHandler';
-import { handler as userSeriesStatusHandler } from './handlers/userSeriesStatusHandler';
-import { handler as openLibraryHandler } from './handlers/openLibraryHandler';
-import { handler as googleBooksHandler } from './handlers/googleBooksHandler';
-import { handler as bookshelfAiHandler } from './handlers/bookshelfAiHandler';
+import { container } from './config/container';
+import { BooksController } from './adapters/inbound/http/booksController';
+import { SeriesController } from './adapters/inbound/http/seriesController';
+import { UserSeriesStatusController } from './adapters/inbound/http/userSeriesStatusController';
+import { GoogleBooksController } from './adapters/inbound/http/googleBooksController';
+import { OpenLibraryController } from './adapters/inbound/http/openLibraryController';
+import { BookshelfAiController } from './adapters/inbound/http/bookshelfAiController';
 
 const PORT = Number(process.env.PORT) || 8080;
+
+const booksController = new BooksController(container.bookUseCases);
+const seriesController = new SeriesController(container.seriesUseCases);
+const userSeriesStatusController = new UserSeriesStatusController(container.userStatusUseCases);
+const googleBooksController = new GoogleBooksController(container.externalCatalogUseCases);
+const openLibraryController = new OpenLibraryController(container.externalCatalogUseCases);
+const bookshelfAiController = new BookshelfAiController(container.bookshelfAiUseCases);
 
 async function adaptLambdaEvent(req: http.IncomingMessage, body: string) {
   const urlParts = (req.url || '/').split('?');
@@ -61,17 +69,17 @@ const server = http.createServer(async (req, res) => {
       let response: any = null;
 
       if (path.startsWith('/bookshelf')) {
-        response = await bookshelfAiHandler(event);
+        response = await bookshelfAiController.handleRequest(event);
       } else if (path.startsWith('/google-books')) {
-        response = await googleBooksHandler(event);
+        response = await googleBooksController.handleRequest(event);
       } else if (path.startsWith('/open-library')) {
-        response = await openLibraryHandler(event);
+        response = await openLibraryController.handleRequest(event);
       } else if (path.startsWith('/user-series-status')) {
-        response = await userSeriesStatusHandler(event);
+        response = await userSeriesStatusController.handleRequest(event);
       } else if (path.startsWith('/series')) {
-        response = await seriesHandler(event);
+        response = await seriesController.handleRequest(event);
       } else if (path.startsWith('/books')) {
-        response = await booksHandler(event);
+        response = await booksController.handleRequest(event);
       } else if (path === '/health' || path === '/') {
         res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status: 'ok', service: 'shelfd-backend' }));
