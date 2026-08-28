@@ -100,18 +100,6 @@ resource "google_cloud_run_service_iam_member" "noauth" {
   member   = "allUsers"
 }
 
-resource "google_project_iam_member" "deployer_run_admin" {
-  project = local.project_id
-  role    = "roles/run.admin"
-  member  = "serviceAccount:github-actions-deployer@${local.project_id}.iam.gserviceaccount.com"
-}
-
-resource "google_project_iam_member" "deployer_secret_admin" {
-  project = local.project_id
-  role    = "roles/secretmanager.admin"
-  member  = "serviceAccount:github-actions-deployer@${local.project_id}.iam.gserviceaccount.com"
-}
-
 resource "google_project_service" "apikeys" {
   project            = local.project_id
   service            = "apikeys.googleapis.com"
