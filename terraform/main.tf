@@ -105,3 +105,33 @@ resource "google_project_iam_member" "deployer_run_admin" {
   role    = "roles/run.admin"
   member  = "serviceAccount:github-actions-deployer@${local.project_id}.iam.gserviceaccount.com"
 }
+
+resource "google_project_service" "apikeys" {
+  project            = local.project_id
+  service            = "apikeys.googleapis.com"
+  disable_on_destroy = false
+}
+
+resource "google_apikeys_key" "google_books_key" {
+  name         = "google-books-api-key"
+  display_name = "Shelfd Backend Google Books API Key"
+  project      = local.project_id
+
+  depends_on = [google_project_service.apikeys]
+}
+
+resource "google_secret_manager_secret" "google_books_secret" {
+  secret_id = "google-books-api-key"
+  project   = local.project_id
+
+  replication {
+    auto {}
+  }
+
+  depends_on = [google_project_service.secretmanager]
+}
+
+resource "google_secret_manager_secret_version" "google_books_secret_version" {
+  secret      = google_secret_manager_secret.google_books_secret.id
+  secret_data = google_apikeys_key.google_books_key.key_string
+}
