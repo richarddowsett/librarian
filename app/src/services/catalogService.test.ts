@@ -1,4 +1,11 @@
 import { isEnglishCatalogBook, fetchAuthorCatalog } from './catalogService';
+import { fetchAuthorCatalogApi } from './apiClient';
+
+jest.mock('./apiClient', () => ({
+  fetchAuthorCatalogApi: jest.fn(),
+  fetchSeriesCatalogApi: jest.fn(),
+  searchBooksApi: jest.fn(),
+}));
 
 describe('catalogService', () => {
   describe('isEnglishCatalogBook', () => {
@@ -24,35 +31,22 @@ describe('catalogService', () => {
   });
 
   describe('fetchAuthorCatalog API query', () => {
-    it('includes langRestrict=en in fallback Google Books search URL', async () => {
-      const mockFetch = jest.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          items: [
-            {
-              volumeInfo: {
-                title: 'Clean Code',
-                language: 'en',
-                industryIdentifiers: [{ type: 'ISBN_13', identifier: '9780132350884' }],
-              },
-            },
-            {
-              volumeInfo: {
-                title: 'Código Limpio (Spanish Edition)',
-                language: 'es',
-              },
-            },
-          ],
-        }),
-      });
-
-      global.fetch = mockFetch as any;
+    it('fetches author catalog from backend API service', async () => {
+      (fetchAuthorCatalogApi as jest.Mock).mockResolvedValueOnce([
+        {
+          title: 'Clean Code',
+          language: 'en',
+          isbn: '9780132350884',
+        },
+        {
+          title: 'Código Limpio (Spanish Edition)',
+          language: 'es',
+        },
+      ]);
 
       const result = await fetchAuthorCatalog('Robert C. Martin');
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining('langRestrict=en')
-      );
+      expect(fetchAuthorCatalogApi).toHaveBeenCalledWith('Robert C. Martin');
       expect(result).toHaveLength(1);
       expect(result[0].title).toBe('Clean Code');
     });

@@ -175,6 +175,26 @@ export async function fetchSeriesCatalogApi(series: string, options?: ApiOptions
   }
 }
 
+export async function searchBooksApi(title: string, author?: string, options?: ApiOptions): Promise<any[]> {
+  if (!API_BASE_URL) return [];
+  try {
+    const params = new URLSearchParams({ title });
+    if (author) params.append('author', author);
+    const response = await fetch(`${API_BASE_URL}/google-books/search?${params.toString()}`, {
+      method: 'GET',
+      headers: getHeaders(options),
+    });
+
+    if (checkUnauthorized(response, options)) return [];
+    if (!response.ok) return [];
+    const data = await response.json();
+    return data.results || [];
+  } catch (error) {
+    console.error('searchBooksApi Error:', error);
+    return [];
+  }
+}
+
 export interface OpenLibraryListSummary {
   url: string;
   fullUrl?: string;

@@ -38,42 +38,8 @@ export async function fetchBookByISBN(isbn: string): Promise<GoogleBookResult | 
       };
     }
   } catch (error) {
-    // Proceed to direct query fallback
+    console.error('Error looking up book via backend API:', error);
   }
 
-  try {
-    const response = await fetch(
-      `https://www.googleapis.com/books/v1/volumes?q=isbn:${sanitizedIsbn}`
-    );
-
-    if (!response || !response.ok) {
-      throw new Error(`Google Books API error: ${response?.status || 'Unknown'}`);
-    }
-
-    const data = await response.json();
-    if (!data.items || data.items.length === 0) {
-      return null;
-    }
-
-    const volumeInfo = data.items[0].volumeInfo || {};
-    const authors = Array.isArray(volumeInfo.authors) ? volumeInfo.authors : ['Unknown Author'];
-    const coverUrl = volumeInfo.imageLinks?.extraLarge || volumeInfo.imageLinks?.large || volumeInfo.imageLinks?.thumbnail;
-
-    return {
-      isbn: sanitizedIsbn,
-      title: volumeInfo.title || 'Untitled',
-      subtitle: volumeInfo.subtitle || undefined,
-      authors,
-      coverUrl: coverUrl ? coverUrl.replace(/^http:/, 'https:') : undefined,
-      publisher: volumeInfo.publisher,
-      publishDate: volumeInfo.publishedDate,
-      pageCount: volumeInfo.pageCount,
-      description: volumeInfo.description ? volumeInfo.description.replace(/<[^>]*>?/gm, '') : undefined,
-      categories: volumeInfo.categories,
-      language: volumeInfo.language,
-    };
-  } catch (error) {
-    console.error('Error fetching book from Google Books:', error);
-    throw error;
-  }
+  return null;
 }
