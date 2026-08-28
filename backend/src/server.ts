@@ -35,6 +35,19 @@ async function adaptLambdaEvent(req: http.IncomingMessage, body: string) {
 }
 
 const server = http.createServer(async (req, res) => {
+  const corsHeaders: Record<string, string> = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-user-id, X-Requested-With',
+    'Access-Control-Max-Age': '86400',
+  };
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200, corsHeaders);
+    res.end();
+    return;
+  }
+
   let body = '';
   req.on('data', (chunk) => {
     body += chunk;
@@ -60,21 +73,21 @@ const server = http.createServer(async (req, res) => {
       } else if (path.startsWith('/books')) {
         response = await booksHandler(event);
       } else if (path === '/health' || path === '/') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status: 'ok', service: 'shelfd-backend' }));
         return;
       } else {
-        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.writeHead(404, { ...corsHeaders, 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: false, error: 'Endpoint not found' }));
         return;
       }
 
-      const headers = response.headers || {};
+      const headers = { ...corsHeaders, ...(response.headers || {}) };
       res.writeHead(response.statusCode || 200, headers);
       res.end(response.body || '');
     } catch (err: any) {
       console.error('Server Handler Error:', err);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ success: false, error: err.message || 'Internal Server Error' }));
     }
   });
