@@ -1,4 +1,4 @@
-name: Deploy App (Expo Web S3/CloudFront & EAS Mobile)
+name: Deploy App (Expo Web & Firebase Hosting)
 
 on:
   push:
@@ -17,18 +17,15 @@ on:
 
 permissions:
   contents: read
-  checks: write
-  pull-requests: write
+  id-token: write
 
 jobs:
   build-and-deploy-web:
-    name: Build & Deploy Expo Web SPA to AWS S3 / CloudFront
+    name: Build & Deploy Expo Web SPA to Firebase Hosting
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ./app
-    outputs:
-      has_expo_token: ${{ steps.check-token.outputs.has_token }}
 
     steps:
       - name: Checkout Code
@@ -52,52 +49,18 @@ jobs:
         env:
           EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
 
-      - name: Deploy to Firebase Hosting
+      - name: Authenticate to Google Cloud
         if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-        uses: FirebaseExtended/action-hosting-deploy@v0
+        uses: google-github-actions/auth@v2
         with:
-          repoToken: "${{ secrets.GITHUB_TOKEN }}"
-          firebaseServiceAccount: "${{ secrets.FIREBASE_SERVICE_ACCOUNT_SHELFD_506308 }}"
-          channelId: live
-          projectId: shelfd-506308
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Check Expo Token Presence
-        id: check-token
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      - name: Setup gcloud CLI
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy to Firebase Hosting & Firestore Security Rules
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         run: |
-          if [ -n "$EXPO_TOKEN" ]; then
-            echo "has_token=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_token=false" >> "$GITHUB_OUTPUT"
-          fi
-
-  eas-mobile-build:
-    name: EAS Mobile Build (Trigger Manual or Tag)
-    needs: build-and-deploy-web
-    if: github.event_name == 'workflow_dispatch' && needs.build-and-deploy-web.outputs.has_expo_token == 'true'
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./app
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Setup EAS CLI
-        uses: expo/expo-github-action@v8
-        with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
-
-      - name: Install Dependencies
-        run: npm ci
-
-      - name: Build Mobile Apps via EAS
-        run: npx eas-cli build --platform all --non-interactive
+          cd ..
+          npx -y firebase-tools@latest deploy --only hosting,firestore --project shelfd-506308
