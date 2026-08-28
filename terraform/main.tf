@@ -86,6 +86,12 @@ resource "google_project_iam_member" "compute_artifact_writer" {
   member  = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
 }
 
+resource "google_project_iam_member" "compute_secret_accessor" {
+  project = local.project_id
+  role    = "roles/secretmanager.secretAccessor"
+  member  = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
+}
+
 resource "google_cloud_run_service_iam_member" "noauth" {
   location = local.region
   project  = local.project_id
