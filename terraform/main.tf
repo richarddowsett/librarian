@@ -106,6 +106,12 @@ resource "google_project_iam_member" "deployer_run_admin" {
   member  = "serviceAccount:github-actions-deployer@${local.project_id}.iam.gserviceaccount.com"
 }
 
+resource "google_project_iam_member" "deployer_secret_admin" {
+  project = local.project_id
+  role    = "roles/secretmanager.admin"
+  member  = "serviceAccount:github-actions-deployer@${local.project_id}.iam.gserviceaccount.com"
+}
+
 resource "google_project_service" "apikeys" {
   project            = local.project_id
   service            = "apikeys.googleapis.com"
