@@ -29,17 +29,19 @@ export async function signUpWithFirebase(
   email: string,
   password: string,
   name?: string
-): Promise<{ user: AuthSessionUser }> {
+): Promise<{ user: AuthSessionUser; idToken: string }> {
   const cred = await createUserWithEmailAndPassword(auth, email, password);
   if (name && cred.user) {
     await updateProfile(cred.user, { displayName: name });
   }
+  const idToken = await cred.user.getIdToken();
   return {
     user: {
       uid: cred.user.uid,
       email: cred.user.email || email,
       displayName: name || cred.user.displayName || email.split('@')[0],
     },
+    idToken,
   };
 }
 

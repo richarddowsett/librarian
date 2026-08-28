@@ -81,9 +81,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         uid: res.user.uid,
         email: res.user.email,
         displayName: res.user.displayName,
+        idToken: res.idToken,
+        accessToken: res.idToken,
         createdAt: new Date().toISOString(),
       };
-      saveSession(profile, 'fb-token-' + res.user.uid);
+      saveSession(profile, res.idToken);
       setIsLoading(false);
       return { success: true };
     } catch (err: any) {
