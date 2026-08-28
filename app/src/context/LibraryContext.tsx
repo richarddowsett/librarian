@@ -83,11 +83,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [refreshing, setRefreshing] = useState<boolean>(false);
 
   const handleUnauthorized = () => {
-    console.warn('401 Unauthorized response received. Logging out expired user session.');
-    if (typeof window !== 'undefined' && window.alert) {
-      window.alert('Your login session has expired. Please sign in again to access your library catalogue.');
-    }
-    logout();
+    console.warn('401/403 Unauthorized response received. Silent session refresh.');
   };
 
   const refreshLibrary = async () => {
