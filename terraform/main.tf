@@ -93,3 +93,9 @@ resource "google_cloud_run_service_iam_member" "noauth" {
   role     = "roles/run.invoker"
   member   = "allUsers"
 }
+
+resource "google_project_iam_member" "deployer_run_admin" {
+  project = local.project_id
+  role    = "roles/run.admin"
+  member  = "serviceAccount:github-actions-deployer@${local.project_id}.iam.gserviceaccount.com"
+}
